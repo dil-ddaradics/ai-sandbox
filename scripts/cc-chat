@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+
+CTR_FILE="$(pwd)/.cc-container"
+[[ ! -f "$CTR_FILE" ]] && _die "Run cc-up first."
+CTR="$(cat "$CTR_FILE")"
+
+docker exec -it "$CTR" bash -c "cd /workspace && claude"

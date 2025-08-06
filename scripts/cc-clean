@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+
+WT_DIR="$(pwd)"
+ENV_FILE="$WT_DIR/.env.compose"
+
+[[ -f "$ENV_FILE" ]] && docker compose --env-file "$ENV_FILE" down || true
+
+git worktree remove --force "$WT_DIR"
+git -C "$(git rev-parse --show-toplevel)" worktree prune
+
+cd ..
+rm -rf "$WT_DIR"
+_green "✔ Worktree & container cleaned"

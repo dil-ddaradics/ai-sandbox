@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+
+_need aws-vault
+PORT="${PORT:-9099}"
+
+PROFILE="${1:-${AWS_PROFILE:-}}"
+[[ -z "$PROFILE" ]] && _die "Usage: cc-awsvault <aws-profile> (or set AWS_PROFILE)"
+
+# already running?
+if lsof -i :"$PORT" | grep -q aws-vault; then
+  _green "aws-vault credential server already running on port $PORT"
+  exit 0
+fi
+
+_green "Starting aws-vault --server with profile $PROFILE ..."
+aws-vault exec "$PROFILE" --server --listen 127.0.0.1:"$PORT" &
+sleep 2
+
+URL="http://host.docker.internal:${PORT}/"
+_green "IMDS endpoint: $URL"
+
+# save URL for future shells
+mkdir -p "$HOME/.cc"
+echo "$URL" > "$HOME/.cc/awsvault_url"
+
+# still echo so caller can `eval $(cc-awsvault …)` if desired
+echo "export IMDS_URL=$URL"

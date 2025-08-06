@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  dev:
+    build: .
+    container_name: ${CC_CONTAINER_NAME}
+    working_dir: /workspace
+    volumes:
+      - ${WORKTREE}:/workspace
+    environment:
+      - AWS_CONTAINER_CREDENTIALS_FULL_URI=${IMDS_URL}
+      - CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
+    deploy:
+      resources:
+        limits:
+          cpus: ${CPU_LIMIT:-}
+          memory: ${MEM_LIMIT:-}

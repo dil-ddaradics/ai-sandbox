@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+
+ENV_FILE="$(pwd)/.env.compose"
+[[ ! -f "$ENV_FILE" ]] && _die ".env.compose not found – are you in a worktree?"
+docker compose --env-file "$ENV_FILE" down
+_green "Container stopped"

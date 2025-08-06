@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+_need docker
+_need git
+
+REPO_NAME="$(basename "$(git rev-parse --show-toplevel)")"
+BRANCH="$(git symbolic-ref --quiet --short HEAD)"
+[[ -z "$BRANCH" ]] && _die "Not on a branch; git worktree requires a branch"
+WORKTREE_DIR="$WT_ROOT/$REPO_NAME/$BRANCH"
+CTR="cc-${BRANCH//\//-}"
+
+# ensure worktree exists
+if [[ ! -d "$WORKTREE_DIR" ]]; then
+  git worktree add "$WORKTREE_DIR" "$BRANCH"
+fi
+
+# compose env file
+ENV_FILE="$WORKTREE_DIR/.env.compose"
+IMDS_URL="${IMDS_URL:?IMDS_URL missing. Run cc-awsvault <profile> first.}"
+
+cat >"$ENV_FILE" <<EOF
+WORKTREE=$WORKTREE_DIR
+IMDS_URL=$IMDS_URL
+CC_CONTAINER_NAME=$CTR
+CLAUDE_CODE_USE_BEDROCK=$CLAUDE_CODE_USE_BEDROCK
+ANTHROPIC_MODEL=$ANTHROPIC_MODEL
+CC_BRANCH=$BRANCH
+CPU_LIMIT=$CPU_LIMIT
+MEM_LIMIT=$MEM_LIMIT
+EOF
+
+docker compose --env-file "$ENV_FILE" up -d dev
+
+echo "$CTR" > "$WORKTREE_DIR/.cc-container"
+_green "✔ Container $CTR running for $BRANCH at $WORKTREE_DIR"
