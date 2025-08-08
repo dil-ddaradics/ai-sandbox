@@ -4,8 +4,41 @@ source "$(dirname "$0")/_common.sh"
 
 _need aws-vault
 PORT="${PORT:-9099}"
+NON_INTERACTIVE=0
+PROFILE=""
 
-PROFILE="${1:-${AWS_PROFILE:-}}"
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --non-interactive)
+      NON_INTERACTIVE=1
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: cc-awsvault [OPTIONS] <aws-profile>"
+      echo
+      echo "Options:"
+      echo "  --non-interactive   Run in non-interactive mode (use with automation)"
+      echo "  -h, --help          Show this help message"
+      echo
+      exit 0
+      ;;
+    -*)
+      _red "Unknown option: $1"
+      exit 1
+      ;;
+    *)
+      PROFILE="$1"
+      shift
+      ;;
+  esac
+done
+
+# Use AWS_PROFILE if no profile provided
+if [[ -z "$PROFILE" ]]; then
+  PROFILE="${AWS_PROFILE:-}"
+fi
+
 [[ -z "$PROFILE" ]] && _die "Usage: cc-awsvault <aws-profile> (or set AWS_PROFILE)"
 
 # already running?
@@ -64,7 +97,22 @@ else
   else
     # Check if the profile has sessions
     if ! aws-vault list 2>/dev/null | grep "^$PROFILE " | grep -q "[^ ]* *$"; then
-      _die "Profile '$PROFILE' exists but credentials are missing or expired. Try logging in with 'aws-vault login $PROFILE' first."
+      if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
+        _red "Profile '$PROFILE' exists but credentials are missing or expired."
+        _red "In non-interactive mode, cannot prompt for login."
+        _die "Please login manually with 'aws-vault login $PROFILE' first."
+      else
+        _yellow "Profile '$PROFILE' exists but credentials are missing or expired."
+        read -p "Would you like to login now? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+          aws-vault login "$PROFILE"
+          # Re-run this script after login
+          exec "$0" "$PROFILE"
+        else
+          _die "Credentials required. Run 'aws-vault login $PROFILE' first."
+        fi
+      fi
     else
       _die "Failed to start credential server for profile '$PROFILE'. Check aws-vault configuration."
     fi

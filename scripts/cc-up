@@ -8,13 +8,49 @@ _need git
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_NAME="$(basename "$REPO_ROOT")"
 
-# Check if a branch argument was provided
-if [[ $# -gt 0 ]]; then
-  # Use the provided branch name
-  TARGET_BRANCH="$1"
+# Parse arguments
+YES_FLAG=false
+TARGET_BRANCH=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -y|--yes)
+      YES_FLAG=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: cc-up [OPTIONS] [BRANCH_NAME]"
+      echo
+      echo "Options:"
+      echo "  -y, --yes    Automatically answer yes to all prompts"
+      echo "  -h, --help   Show this help message"
+      echo
+      exit 0
+      ;;
+    -*)
+      _red "Unknown option: $1"
+      exit 1
+      ;;
+    *)
+      TARGET_BRANCH="$1"
+      shift
+      break
+      ;;
+  esac
+done
+
+# If no branch name provided after option, use current branch
+if [[ -z "$TARGET_BRANCH" ]]; then
+  TARGET_BRANCH="$(git symbolic-ref --quiet --short HEAD)"
+  [[ -z "$TARGET_BRANCH" ]] && _die "Not on a branch; either specify a branch or checkout one"
+fi
   
-  # Check if the branch exists
-  if ! git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+# Check if the branch exists
+if ! git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+  if $YES_FLAG; then
+    _green "Automatically creating branch '$TARGET_BRANCH'"
+    git branch "$TARGET_BRANCH"
+  else
     # Branch doesn't exist, offer to create it
     read -p "Branch '$TARGET_BRANCH' doesn't exist. Create it? [y/N] " -n 1 -r
     echo
@@ -24,10 +60,6 @@ if [[ $# -gt 0 ]]; then
       _die "Branch '$TARGET_BRANCH' doesn't exist"
     fi
   fi
-else
-  # No argument, use current branch
-  TARGET_BRANCH="$(git symbolic-ref --quiet --short HEAD)"
-  [[ -z "$TARGET_BRANCH" ]] && _die "Not on a branch; either specify a branch or checkout one"
 fi
 
 # Determine if we're in a worktree
@@ -43,10 +75,14 @@ if echo "$WORKTREE_LIST" | grep -q "worktree $CURRENT_DIR"; then
   # If we're in a worktree and target is different branch, warn user
   if [[ "$CURRENT_BRANCH" != "$TARGET_BRANCH" ]]; then
     _red "Warning: You're in worktree for branch '$CURRENT_BRANCH' but targeting '$TARGET_BRANCH'"
-    read -p "Continue? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      exit 0
+    if $YES_FLAG; then
+      _green "Automatically continuing due to --yes flag"
+    else
+      read -p "Continue? [y/N] " -n 1 -r
+      echo
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 0
+      fi
     fi
   fi
 fi

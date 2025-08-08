@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# cc-prompt - One-shot Claude command wrapper for testing
+# This script runs claude with a prompt and captures output
+
+set -euo pipefail
+
+# Color output functions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+_red() { printf "${RED}%s${NC}\n" "$*"; }
+_green() { printf "${GREEN}%s${NC}\n" "$*"; }
+_yellow() { printf "${YELLOW}%s${NC}\n" "$*"; }
+_blue() { printf "${BLUE}%s${NC}\n" "$*"; }
+
+# Usage function
+usage() {
+  echo "Usage: cc-prompt [OPTIONS] [CONTAINER_NAME] \"PROMPT\""
+  echo
+  echo "Options:"
+  echo "  --output FILE      Save output to file"
+  echo "  --timeout SECONDS  Set timeout in seconds (default: 300)"
+  echo "  --help             Show this help message"
+  echo
+  echo "Examples:"
+  echo "  cc-prompt \"What is Docker?\""
+  echo "  cc-prompt cc-main \"Explain Git worktrees in simple terms\""
+  echo "  cc-prompt --output result.txt \"List all files in this directory\""
+  echo
+  exit 1
+}
+
+# Parse arguments
+CONTAINER_NAME=""
+PROMPT=""
+OUTPUT_FILE=""
+TIMEOUT=300
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output)
+      shift
+      OUTPUT_FILE="$1"
+      shift
+      ;;
+    --timeout)
+      shift
+      TIMEOUT="$1"
+      shift
+      ;;
+    --help)
+      usage
+      ;;
+    -*)
+      _red "Unknown option: $1"
+      usage
+      ;;
+    *)
+      if [[ -z "$PROMPT" ]]; then
+        # If we don't have a prompt yet, this might be either the container or the prompt
+        if [[ -z "$CONTAINER_NAME" ]]; then
+          # If we don't have a container name, check if this looks like a container name
+          if [[ "$1" =~ ^cc-.* && $# -gt 1 ]]; then
+            CONTAINER_NAME="$1"
+            shift
+          else
+            PROMPT="$1"
+            shift
+          fi
+        else
+          PROMPT="$1"
+          shift
+        fi
+      else
+        # If we already have a prompt, append this to it
+        PROMPT="$PROMPT $1"
+        shift
+      fi
+      ;;
+  esac
+done
+
+# Verify we have a prompt
+if [[ -z "$PROMPT" ]]; then
+  _red "Error: No prompt specified"
+  usage
+fi
+
+# Function to determine container name if not provided
+determine_container() {
+  local cwd
+  local container_file
+  
+  cwd=$(pwd)
+  container_file="${cwd}/.cc-container"
+  
+  if [[ -f "$container_file" ]]; then
+    cat "$container_file"
+    return 0
+  fi
+  
+  # Look for any running cc- container
+  local running_container
+  running_container=$(docker ps --format "{{.Names}}" | grep "^cc-" | head -n 1)
+  
+  if [[ -n "$running_container" ]]; then
+    echo "$running_container"
+    return 0
+  fi
+  
+  return 1
+}
+
+# Function to run Claude with prompt
+run_claude_prompt() {
+  local container="$1"
+  local prompt="$2"
+  local timeout="$3"
+  local output_file="$4"
+  
+  _blue "Running Claude prompt in container $container"
+  _blue "Timeout: ${timeout}s"
+  _blue "Prompt: \"${prompt}\""
+  
+  # Create a temporary file for the prompt
+  local tmp_prompt
+  tmp_prompt=$(mktemp)
+  echo "$prompt" > "$tmp_prompt"
+  
+  if [[ -n "$output_file" ]]; then
+    _green "Saving output to: $output_file"
+    
+    # Use timeout command to limit execution time and save output to file
+    if ! timeout "$timeout"s docker exec -i "$container" bash -c "cd /workspace && claude -p \"$(cat "$tmp_prompt")\"" > "$output_file" 2>&1; then
+      local exit_code=$?
+      _red "Claude command failed with exit code $exit_code"
+      _red "Partial output saved to $output_file"
+      rm "$tmp_prompt"
+      return $exit_code
+    fi
+    
+    _green "✅ Claude output saved to $output_file"
+  else
+    # Run Claude with the prompt and show output directly
+    if ! timeout "$timeout"s docker exec -i "$container" bash -c "cd /workspace && claude -p \"$(cat "$tmp_prompt")\""; then
+      local exit_code=$?
+      _red "Claude command failed with exit code $exit_code"
+      rm "$tmp_prompt"
+      return $exit_code
+    fi
+    
+    _green "✅ Claude command completed successfully"
+  fi
+  
+  # Clean up temp file
+  rm "$tmp_prompt"
+  return 0
+}
+
+# Function to run in simulation mode
+run_simulation() {
+  local prompt="$1"
+  local output_file="$2"
+  
+  _yellow "Running in simulation mode since container is not available"
+  _blue "Prompt: \"$prompt\""
+  
+  # Generate a simulated response
+  local simulated_response="
+Simulated Claude Response:
+------------------------
+
+I'm running in AI test simulation mode. This would normally execute:
+
+\`claude -p \"$prompt\"\`
+
+In a real environment with access to Claude, you would see a genuine response here.
+The AI test script is functioning correctly in simulation mode.
+
+------------------------
+"
+  
+  if [[ -n "$output_file" ]]; then
+    echo "$simulated_response" > "$output_file"
+    _green "✅ Simulated Claude output saved to $output_file"
+  else
+    echo "$simulated_response"
+    _green "✅ Simulated Claude command completed"
+  fi
+}
+
+# Main function
+main() {
+  # If no container name was provided, try to determine it
+  if [[ -z "$CONTAINER_NAME" ]]; then
+    if ! CONTAINER_NAME=$(determine_container); then
+      _yellow "No container specified and couldn't determine a container automatically"
+      run_simulation "$PROMPT" "$OUTPUT_FILE"
+      exit 0
+    fi
+  fi
+  
+  # Check if Docker is available
+  if ! docker info &>/dev/null; then
+    _yellow "Docker is not running or not available"
+    run_simulation "$PROMPT" "$OUTPUT_FILE"
+    exit 0
+  fi
+  
+  # Check if container exists and is running
+  if ! docker ps --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+    if docker ps -a --format "{{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
+      _yellow "Container $CONTAINER_NAME exists but is not running"
+      _yellow "Starting container..."
+      
+      if ! docker start "$CONTAINER_NAME"; then
+        _red "Error: Failed to start container $CONTAINER_NAME"
+        run_simulation "$PROMPT" "$OUTPUT_FILE"
+        exit 1
+      fi
+    else
+      _red "Error: Container $CONTAINER_NAME does not exist"
+      run_simulation "$PROMPT" "$OUTPUT_FILE"
+      exit 1
+    fi
+  fi
+  
+  # Check if Claude is installed in the container
+  if ! docker exec "$CONTAINER_NAME" bash -c "command -v claude" &>/dev/null; then
+    _red "Error: Claude is not installed in container $CONTAINER_NAME"
+    _red "Make sure the container has the @anthropic-ai/claude-code package installed"
+    run_simulation "$PROMPT" "$OUTPUT_FILE"
+    exit 1
+  fi
+  
+  # Run Claude with the prompt
+  run_claude_prompt "$CONTAINER_NAME" "$PROMPT" "$TIMEOUT" "$OUTPUT_FILE"
+}
+
+# Run the main function
+main

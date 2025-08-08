@@ -26,12 +26,26 @@ update_gitignore() {
 
 # Process command line arguments
 USE_DIRENV=1
+NON_INTERACTIVE=0
 TARGET=""
 
 for arg in "$@"; do
   case "$arg" in
     --no-direnv)
       USE_DIRENV=0
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      ;;
+    --help)
+      echo "Usage: install.sh [OPTIONS] /path/to/repo"
+      echo
+      echo "Options:"
+      echo "  --no-direnv         Don't use direnv for PATH integration"
+      echo "  --non-interactive   Run in non-interactive mode (no prompts)"
+      echo "  --help              Show this help message"
+      echo
+      exit 0
       ;;
     *)
       if [[ -z "$TARGET" ]]; then
@@ -43,7 +57,7 @@ done
 
 # Check if target is provided
 if [[ -z "$TARGET" ]]; then
-  echo "Usage: install.sh [--no-direnv] /path/to/repo"
+  echo "Usage: install.sh [--no-direnv] [--non-interactive] /path/to/repo"
   exit 1
 fi
 
