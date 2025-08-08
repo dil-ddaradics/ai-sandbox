@@ -1,6 +1,6 @@
-# Claude Dev Sandbox
+# AI Sandbox
 
-A turn-key workflow for spinning up isolated Claude Code development sandboxes for every Git work-tree on your machine.
+A turn-key workflow for spinning up isolated AI development sandboxes for every Git work-tree on your machine.
 
 ## Features
 
@@ -29,15 +29,15 @@ A turn-key workflow for spinning up isolated Claude Code development sandboxes f
 
 ```bash
 # Clone this repository
-git clone https://github.com/yourname/claude-dev-sandbox.git
+git clone https://github.com/dil-ddaradics/ai-sandbox.git
 
 # Install into your project
-./claude-dev-sandbox/install.sh ~/path/to/your/repo
+./ai-sandbox/install.sh ~/path/to/your/repo
 ```
 
 ### Path Integration
 
-Claude Dev Sandbox supports two ways to access the `cc-*` commands from anywhere in your repository:
+AI Sandbox supports two ways to access the `cc-*` commands from anywhere in your repository:
 
 1. **With direnv** (recommended): If you have [direnv](https://direnv.net/) installed, the installation script will automatically configure `.envrc` to add the scripts to your PATH when you navigate to your repository.
 
@@ -85,7 +85,7 @@ MEM_LIMIT=8g
 
 ## How It Works
 
-Claude Dev Sandbox creates an isolated development environment for each Git branch by:
+AI Sandbox creates an isolated development environment for each Git branch by:
 
 1. **Setting up AWS authentication**: Runs a credential server once that stays available across terminal sessions
 2. **Creating branch workspaces**: Each branch gets its own Git worktree in a separate directory

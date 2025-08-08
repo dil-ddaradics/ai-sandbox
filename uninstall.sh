@@ -26,11 +26,11 @@ if [[ -f "$TARGET/.envrc" ]]; then
       # Linux and others
       sed -i '/.cc\/scripts/d' "$TARGET/.envrc" 2>/dev/null || echo "⚠️ Could not modify .envrc, you may need to edit it manually"
     fi
-    echo "✓ Removed Claude scripts from PATH in .envrc"
+    echo "✓ Removed AI sandbox scripts from PATH in .envrc"
   else
     echo "⚠️ direnv not installed, but .envrc exists"
-    echo "If you manually added Claude scripts to your PATH, you may need to remove them"
+    echo "If you manually added AI sandbox scripts to your PATH, you may need to remove them"
   fi
 fi
 
-echo "✔ Uninstalled Claude dev tooling from $TARGET"
+echo "✔ Uninstalled AI sandbox tooling from $TARGET"

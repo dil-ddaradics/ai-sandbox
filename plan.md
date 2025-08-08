@@ -1,11 +1,11 @@
-# Claude Dev Sandbox – Complete Implementation Guide
+# AI Sandbox – Complete Implementation Guide
 
 *Generated: 2025-08-06 11:39:51*
 
 ---
 
 ## 0 · Vision & Context
-This repository provides a **turn‑key workflow** for spinning up an isolated **Claude‑Code** development sandbox for _every_ Git work‑tree on your machine.  
+This repository provides a **turn‑key workflow** for spinning up an isolated **AI** development sandbox for _every_ Git work‑tree on your machine.  
 Key goals agreed during design discussion:
 
 | Decision | Value |
@@ -28,7 +28,7 @@ Key goals agreed during design discussion:
 ## 1 · Repository skeleton
 
 ```
-claude-dev-sandbox/
+ai-sandbox/
 ├─ Dockerfile
 ├─ docker-compose.yml
 ├─ scripts/
@@ -298,7 +298,7 @@ cp scripts/templates/.ccenv.example "$TARGET/.cc/.ccenv.example"
 
 echo 'export PATH="$PATH:$(git rev-parse --show-toplevel)/.cc/scripts"' >> "$TARGET/.envrc" || true
 
-echo "✔ Claude dev scripts installed in $TARGET"
+echo "✔ AI sandbox scripts installed in $TARGET"
 ```
 
 ### 6.2 `uninstall.sh`
@@ -317,7 +317,7 @@ done
 rm -rf "$TARGET/.cc"
 sed -i '' '/.cc\/scripts/d' "$TARGET/.envrc" 2>/dev/null || true
 
-echo "✔ Uninstalled Claude dev tooling from $TARGET"
+echo "✔ Uninstalled AI sandbox tooling from $TARGET"
 ```
 
 ---
@@ -326,8 +326,8 @@ echo "✔ Uninstalled Claude dev tooling from $TARGET"
 
 ```bash
 # Clone sandbox & install into your project
-git clone https://github.com/you/claude-dev-sandbox.git
-./claude-dev-sandbox/install.sh ~/dev/my-app
+git clone https://github.com/dil-ddaradics/ai-sandbox.git
+./ai-sandbox/install.sh ~/dev/my-app
 
 # Start credential server (once)
 cc-awsvault dev-sso

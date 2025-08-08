@@ -1,6 +1,6 @@
-# Claude Dev Sandbox Manual Test Plan
+# AI Sandbox Manual Test Plan
 
-This document outlines a comprehensive set of manual tests to verify the functionality of the Claude Dev Sandbox system, including edge cases and error handling. Follow these steps to ensure the system works correctly across various scenarios.
+This document outlines a comprehensive set of manual tests to verify the functionality of the AI Sandbox system, including edge cases and error handling. Follow these steps to ensure the system works correctly across various scenarios.
 
 ## Table of Contents
 1. [Installation and Setup Tests](#1-installation-and-setup-tests)
@@ -28,13 +28,13 @@ This document outlines a comprehensive set of manual tests to verify the functio
    git clone https://github.com/your/test-repo.git test-fresh
    cd test-fresh
    ```
-2. Clone the Claude Dev Sandbox repository
+2. Clone the AI Sandbox repository
    ```bash
-   git clone https://github.com/yourname/claude-dev-sandbox.git
+   git clone https://github.com/dil-ddaradics/ai-sandbox.git
    ```
 3. Run the installation script
    ```bash
-   ./claude-dev-sandbox/install.sh $(pwd)
+   ./ai-sandbox/install.sh $(pwd)
    ```
 
 **Expected Results:**
@@ -54,7 +54,7 @@ This document outlines a comprehensive set of manual tests to verify the functio
    ```
 2. Run the installation script with the no-direnv flag
    ```bash
-   ./claude-dev-sandbox/install.sh --no-direnv $(pwd)
+   ./ai-sandbox/install.sh --no-direnv $(pwd)
    ```
 
 **Expected Results:**
@@ -67,7 +67,7 @@ This document outlines a comprehensive set of manual tests to verify the functio
 **Purpose:** Verify that the system can be re-installed over an existing installation.
 
 **Steps:**
-1. Clone a Git repository where Claude Dev Sandbox is already installed
+1. Clone a Git repository where AI Sandbox is already installed
    ```bash
    git clone https://github.com/your/existing-repo.git test-reinstall
    cd test-reinstall
@@ -80,10 +80,10 @@ This document outlines a comprehensive set of manual tests to verify the functio
 3. Re-run the installation script (with or without --no-direnv flag)
    ```bash
    # To keep existing direnv setting:
-   ./claude-dev-sandbox/install.sh $(pwd)
+   ./ai-sandbox/install.sh $(pwd)
    
    # Or to change to no-direnv mode:
-   ./claude-dev-sandbox/install.sh --no-direnv $(pwd)
+   ./ai-sandbox/install.sh --no-direnv $(pwd)
    ```
 
 **Expected Results:**
@@ -103,7 +103,7 @@ This document outlines a comprehensive set of manual tests to verify the functio
    ```
 2. Run the installation script
    ```bash
-   ./claude-dev-sandbox/install.sh $(pwd)
+   ./ai-sandbox/install.sh $(pwd)
    ```
 
 **Expected Results:**
