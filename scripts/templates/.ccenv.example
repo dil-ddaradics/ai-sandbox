@@ -2,6 +2,9 @@
 CLAUDE_CODE_USE_BEDROCK=1
 ANTHROPIC_MODEL=us.anthropic.claude-3-sonnet-20250219-v1:0
 
+# Direnv integration - set to 0 to disable direnv usage
+USE_DIRENV=1
+
 # Work‑tree parking lot
 WT_ROOT=$HOME/worktrees
 

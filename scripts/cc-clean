@@ -2,14 +2,49 @@
 set -euo pipefail
 source "$(dirname "$0")/_common.sh"
 
+# Parse arguments
+stop_creds=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all|--full)
+      stop_creds=true
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: cc-clean [options]"
+      echo
+      echo "Options:"
+      echo "  --all, --full    Also stop AWS credential server"
+      echo "  --help, -h       Show this help message"
+      exit 0
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
 WT_DIR="$(pwd)"
 ENV_FILE="$WT_DIR/.env.compose"
 
-[[ -f "$ENV_FILE" ]] && docker compose --env-file "$ENV_FILE" down || true
+# Stop container
+if [[ -f "$ENV_FILE" ]]; then
+  _green "Stopping container..."
+  docker compose --env-file "$ENV_FILE" down || true
+fi
 
-git worktree remove --force "$WT_DIR"
-git -C "$(git rev-parse --show-toplevel)" worktree prune
+# Remove worktree
+_green "Removing Git worktree..."
+git worktree remove --force "$WT_DIR" 2>/dev/null || true
+git -C "$(git rev-parse --show-toplevel 2>/dev/null || echo ".") " worktree prune 2>/dev/null || true
 
+# If --all was specified, also stop credential server
+if [[ "$stop_creds" = true ]]; then
+  _green "Stopping AWS credential server..."
+  "$(dirname "$0")/cc-awsvault-stop"
+fi
+
+# Clean up directory
 cd ..
 rm -rf "$WT_DIR"
 _green "✔ Worktree & container cleaned"

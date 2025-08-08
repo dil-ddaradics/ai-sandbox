@@ -4,33 +4,106 @@ source "$(dirname "$0")/_common.sh"
 _need docker
 _need git
 
-REPO_NAME="$(basename "$(git rev-parse --show-toplevel)")"
-BRANCH="$(git symbolic-ref --quiet --short HEAD)"
-[[ -z "$BRANCH" ]] && _die "Not on a branch; git worktree requires a branch"
-WORKTREE_DIR="$WT_ROOT/$REPO_NAME/$BRANCH"
-CTR="cc-${BRANCH//\//-}"
+# Get repository root path (works in both main repo and worktrees)
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_NAME="$(basename "$REPO_ROOT")"
 
-# ensure worktree exists
+# Check if a branch argument was provided
+if [[ $# -gt 0 ]]; then
+  # Use the provided branch name
+  TARGET_BRANCH="$1"
+  
+  # Check if the branch exists
+  if ! git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+    # Branch doesn't exist, offer to create it
+    read -p "Branch '$TARGET_BRANCH' doesn't exist. Create it? [y/N] " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      git branch "$TARGET_BRANCH"
+    else
+      _die "Branch '$TARGET_BRANCH' doesn't exist"
+    fi
+  fi
+else
+  # No argument, use current branch
+  TARGET_BRANCH="$(git symbolic-ref --quiet --short HEAD)"
+  [[ -z "$TARGET_BRANCH" ]] && _die "Not on a branch; either specify a branch or checkout one"
+fi
+
+# Determine if we're in a worktree
+IS_WORKTREE=false
+CURRENT_DIR="$(pwd)"
+WORKTREE_LIST="$(git worktree list --porcelain)"
+
+# Check if current directory is a worktree
+if echo "$WORKTREE_LIST" | grep -q "worktree $CURRENT_DIR"; then
+  IS_WORKTREE=true
+  CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD)"
+  
+  # If we're in a worktree and target is different branch, warn user
+  if [[ "$CURRENT_BRANCH" != "$TARGET_BRANCH" ]]; then
+    _red "Warning: You're in worktree for branch '$CURRENT_BRANCH' but targeting '$TARGET_BRANCH'"
+    read -p "Continue? [y/N] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      exit 0
+    fi
+  fi
+fi
+
+# Set up worktree path and container name
+WORKTREE_DIR="$WT_ROOT/$REPO_NAME/$TARGET_BRANCH"
+CTR="cc-${TARGET_BRANCH//\//-}"
+
+# Check if container already exists and is running
+if docker ps --format "{{.Names}}" | grep -q "^$CTR$"; then
+  _green "Container $CTR is already running for $TARGET_BRANCH"
+  _green "Worktree is at $WORKTREE_DIR"
+  exit 0
+fi
+
+# Check if container exists but is stopped
+if docker ps -a --format "{{.Names}}" | grep -q "^$CTR$"; then
+  _green "Starting existing container $CTR for $TARGET_BRANCH"
+  docker start "$CTR"
+  exit 0
+fi
+
+# Ensure worktree exists
 if [[ ! -d "$WORKTREE_DIR" ]]; then
-  git worktree add "$WORKTREE_DIR" "$BRANCH"
+  _green "Creating worktree for $TARGET_BRANCH at $WORKTREE_DIR"
+  git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH"
+fi
+
+# Check if IMDS_URL is available, but don't fail if not - dynamic credential handling will try to load it
+if [[ -z "${IMDS_URL:-}" ]]; then
+  if [[ -f "$HOME/.cc/awsvault_url" ]]; then
+    IMDS_URL=$(< "$HOME/.cc/awsvault_url")
+    _green "Using saved IMDS_URL from $HOME/.cc/awsvault_url"
+  else
+    _yellow "Warning: IMDS_URL not found. Container will attempt to load credentials dynamically."
+    _yellow "Run cc-awsvault <profile> first for immediate availability."
+    IMDS_URL=""
+  fi
 fi
 
 # compose env file
 ENV_FILE="$WORKTREE_DIR/.env.compose"
-IMDS_URL="${IMDS_URL:?IMDS_URL missing. Run cc-awsvault <profile> first.}"
 
 cat >"$ENV_FILE" <<EOF
 WORKTREE=$WORKTREE_DIR
+HOME=$HOME
 IMDS_URL=$IMDS_URL
 CC_CONTAINER_NAME=$CTR
 CLAUDE_CODE_USE_BEDROCK=$CLAUDE_CODE_USE_BEDROCK
 ANTHROPIC_MODEL=$ANTHROPIC_MODEL
-CC_BRANCH=$BRANCH
+CC_BRANCH=$TARGET_BRANCH
 CPU_LIMIT=$CPU_LIMIT
 MEM_LIMIT=$MEM_LIMIT
 EOF
 
+# Start container
 docker compose --env-file "$ENV_FILE" up -d dev
 
 echo "$CTR" > "$WORKTREE_DIR/.cc-container"
-_green "✔ Container $CTR running for $BRANCH at $WORKTREE_DIR"
+_green "✔ Container $CTR running for $TARGET_BRANCH at $WORKTREE_DIR"

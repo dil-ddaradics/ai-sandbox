@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+_need docker
+
+# Find the container name
+if [[ $# -gt 0 ]]; then
+  CONTAINER="$1"
+else
+  # Use the current directory to guess the container name
+  CURRENT_DIR="$(pwd)"
+  if [[ -f "$CURRENT_DIR/.cc-container" ]]; then
+    CONTAINER=$(cat "$CURRENT_DIR/.cc-container")
+  else
+    # Check if we're in a worktree
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.cc-container" ]]; then
+      CONTAINER=$(cat "$REPO_ROOT/.cc-container")
+    else
+      _die "Cannot determine container name. Please specify as argument."
+    fi
+  fi
+fi
+
+# Check if container exists
+if ! docker ps --format "{{.Names}}" | grep -q "^$CONTAINER$"; then
+  _die "Container $CONTAINER not running. Start it with cc-up first."
+fi
+
+_green "Running credential refresh test in container $CONTAINER..."
+docker exec -it "$CONTAINER" /usr/local/bin/test-cred-refresh

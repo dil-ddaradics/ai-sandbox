@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# cc-awsvault-stop - Stops the AWS credential server
+set -euo pipefail
+source "$(dirname "$0")/_common.sh"
+
+PORT="${PORT:-9099}"
+
+# Function to find and kill aws-vault process
+kill_aws_vault() {
+  local aws_vault_pid=""
+  
+  # First try to get PID from saved file
+  if [[ -f "$HOME/.cc/awsvault_pid" ]]; then
+    aws_vault_pid=$(cat "$HOME/.cc/awsvault_pid" 2>/dev/null || echo "")
+    # Verify the process exists and is aws-vault
+    if [[ -n "$aws_vault_pid" ]] && ! ps -p "$aws_vault_pid" -o command= | grep -q aws-vault; then
+      _yellow "Saved PID $aws_vault_pid is not an aws-vault process"
+      aws_vault_pid=""
+    fi
+  fi
+  
+  # Fall back to port-based detection if PID not found or invalid
+  if [[ -z "$aws_vault_pid" ]]; then
+    aws_vault_pid=$(lsof -t -i :"$PORT" 2>/dev/null | grep -E "^[0-9]+$" || echo "")
+  fi
+  
+  # If still no PID, try to find any aws-vault process running with --ecs-server
+  if [[ -z "$aws_vault_pid" ]]; then
+    aws_vault_pid=$(pgrep -f "aws-vault.*--ecs-server" || echo "")
+  fi
+  
+  if [[ -n "$aws_vault_pid" ]]; then
+    _green "Stopping aws-vault credential server (PID: $aws_vault_pid)..."
+    kill "$aws_vault_pid" 2>/dev/null || true
+    
+    # Wait for process to terminate
+    local counter=0
+    while kill -0 "$aws_vault_pid" 2>/dev/null && [[ $counter -lt 10 ]]; do
+      sleep 0.2
+      counter=$((counter + 1))
+    done
+    
+    if kill -0 "$aws_vault_pid" 2>/dev/null; then
+      _yellow "Process did not terminate gracefully, forcing..."
+      kill -9 "$aws_vault_pid" 2>/dev/null || true
+    fi
+    
+    # Clean up PID file
+    if [[ -f "$HOME/.cc/awsvault_pid" ]]; then
+      rm "$HOME/.cc/awsvault_pid"
+    fi
+    
+    # Verify it's gone
+    if ! pgrep -f "aws-vault.*--ecs-server" | grep -q "$aws_vault_pid"; then
+      _green "AWS credential server stopped successfully"
+      return 0
+    else
+      _red "Failed to stop AWS credential server"
+      return 1
+    fi
+  else
+    _yellow "No aws-vault credential server found"
+    return 0
+  fi
+}
+
+# Option to clear the saved URL
+if [[ "${1:-}" == "--clear" ]]; then
+  if [[ -f "$HOME/.cc/awsvault_url" ]]; then
+    rm "$HOME/.cc/awsvault_url"
+    _green "Removed saved credential URL"
+  fi
+fi
+
+# Try to stop the server
+kill_aws_vault
+
+# List any remaining aws-vault processes
+remaining=$(pgrep -f "aws-vault.*(--server|--ecs-server)" || echo "")
+if [[ -n "$remaining" ]]; then
+  _yellow "Other aws-vault processes still running:"
+  ps -p "$remaining" -o pid,command || true
+fi
+
+exit 0

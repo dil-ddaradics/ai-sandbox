@@ -7,6 +7,7 @@ services:
     working_dir: /workspace
     volumes:
       - ${WORKTREE}:/workspace
+      - ${HOME}/.cc:/host/.cc:ro
     environment:
       - AWS_CONTAINER_CREDENTIALS_FULL_URI=${IMDS_URL}
       - CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}

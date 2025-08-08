@@ -6,4 +6,19 @@ CTR_FILE="$(pwd)/.cc-container"
 [[ ! -f "$CTR_FILE" ]] && _die "Run cc-up first."
 CTR="$(cat "$CTR_FILE")"
 
+# Check if container is running
+if ! docker ps --format "{{.Names}}" | grep -q "^$CTR$"; then
+  _die "Container $CTR is not running. Start it with cc-up first."
+fi
+
+# Check AWS connectivity in container before launching Claude
+_green "Checking AWS credential connectivity..."
+if ! docker exec "$CTR" /usr/local/bin/aws-connectivity-check; then
+  _red "AWS credential check failed. Please restart the credential server with:"
+  _red "  cc-awsvault <your-aws-profile>"
+  exit 1
+fi
+
+# Launch Claude
+_green "Launching Claude Code..."
 docker exec -it "$CTR" bash -c "cd /workspace && claude"

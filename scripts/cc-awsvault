@@ -15,11 +15,61 @@ if lsof -i :"$PORT" | grep -q aws-vault; then
 fi
 
 _green "Starting aws-vault --server with profile $PROFILE ..."
-aws-vault exec "$PROFILE" --server --listen 127.0.0.1:"$PORT" &
-sleep 2
 
-URL="http://host.docker.internal:${PORT}/"
-_green "IMDS endpoint: $URL"
+# First capture the URL in a temporary run
+URL_FILE=$(mktemp)
+aws-vault exec "$PROFILE" --ecs-server -- bash -c 'echo $AWS_CONTAINER_CREDENTIALS_FULL_URI > "'$URL_FILE'"'
+
+# Read the URL from the temporary file
+if [[ -s "$URL_FILE" ]]; then
+  URL=$(cat "$URL_FILE")
+  
+  # Extract port from URL for monitoring
+  PORT=$(echo "$URL" | grep -oE ':[0-9]+' | tr -d ':')
+  
+  # Modify URL to use host.docker.internal instead of 127.0.0.1 for container access
+  if [[ "$URL" == http://127.0.0.1:* ]]; then
+    ORIG_URL="$URL"
+    URL="http://host.docker.internal:${PORT}/"
+    _green "Mapped $ORIG_URL to $URL for container access"
+  fi
+  
+  # Start the long-running server
+  _green "Starting persistent credential server..."
+  nohup aws-vault exec "$PROFILE" --ecs-server -- sleep infinity >/dev/null 2>&1 &
+  SERVER_PID=$!
+  
+  # Verify the server is running
+  sleep 2
+  if kill -0 $SERVER_PID 2>/dev/null; then
+    _green "Credential server running with PID: $SERVER_PID"
+    # Save PID for management
+    mkdir -p "$HOME/.cc"
+    echo $SERVER_PID > "$HOME/.cc/awsvault_pid"
+  else
+    _red "Warning: Credential server may have failed to start"
+  fi
+  
+  # Clean up temporary file
+  rm "$URL_FILE"
+  
+  _green "IMDS endpoint: $URL"
+else
+  rm -f "$URL_FILE"
+  
+  # Check if the profile exists and has valid credentials
+  if ! aws-vault list 2>/dev/null | grep -q "^$PROFILE "; then
+    AVAILABLE_PROFILES=$(aws-vault list 2>/dev/null | grep -v "^===" | awk '{print $1}' | tr '\n' ' ')
+    _die "Profile '$PROFILE' not found. Available profiles: $AVAILABLE_PROFILES"
+  else
+    # Check if the profile has sessions
+    if ! aws-vault list 2>/dev/null | grep "^$PROFILE " | grep -q "[^ ]* *$"; then
+      _die "Profile '$PROFILE' exists but credentials are missing or expired. Try logging in with 'aws-vault login $PROFILE' first."
+    else
+      _die "Failed to start credential server for profile '$PROFILE'. Check aws-vault configuration."
+    fi
+  fi
+fi
 
 # save URL for future shells
 mkdir -p "$HOME/.cc"
