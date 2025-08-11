@@ -10,6 +10,7 @@ REPO_NAME="$(basename "$REPO_ROOT")"
 
 # Parse arguments
 YES_FLAG=false
+FORCE_FLAG=false
 TARGET_BRANCH=""
 
 while [[ $# -gt 0 ]]; do
@@ -18,11 +19,16 @@ while [[ $# -gt 0 ]]; do
       YES_FLAG=true
       shift
       ;;
+    -f|--force)
+      FORCE_FLAG=true
+      shift
+      ;;
     -h|--help)
       echo "Usage: cc-up [OPTIONS] [BRANCH_NAME]"
       echo
       echo "Options:"
       echo "  -y, --yes    Automatically answer yes to all prompts"
+      echo "  -f, --force  Force rebuild of container even if it exists"
       echo "  -h, --help   Show this help message"
       echo
       exit 0
@@ -94,16 +100,28 @@ CTR="cc-${REPO_NAME}-${TARGET_BRANCH//\//-}"
 
 # Check if container already exists and is running
 if docker ps --format "{{.Names}}" | grep -q "^$CTR$"; then
-  _green "Container $CTR is already running for $TARGET_BRANCH"
-  _green "Worktree is at $WORKTREE_DIR"
-  exit 0
+  if [[ "$FORCE_FLAG" == "true" ]]; then
+    _green "Force rebuilding container $CTR for $TARGET_BRANCH"
+    docker stop "$CTR"
+    docker rm "$CTR"
+  else
+    _green "Container $CTR is already running for $TARGET_BRANCH"
+    _green "Worktree is at $WORKTREE_DIR"
+    _yellow "Use --force to rebuild the container with latest changes"
+    exit 0
+  fi
 fi
 
 # Check if container exists but is stopped
 if docker ps -a --format "{{.Names}}" | grep -q "^$CTR$"; then
-  _green "Starting existing container $CTR for $TARGET_BRANCH"
-  docker start "$CTR"
-  exit 0
+  if [[ "$FORCE_FLAG" == "true" ]]; then
+    _green "Force rebuilding stopped container $CTR for $TARGET_BRANCH"
+    docker rm "$CTR"
+  else
+    _green "Starting existing container $CTR for $TARGET_BRANCH"
+    docker start "$CTR"
+    exit 0
+  fi
 fi
 
 # Ensure worktree exists
