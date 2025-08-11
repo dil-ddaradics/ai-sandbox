@@ -3,9 +3,34 @@ set -euo pipefail
 source "$(dirname "$0")/_common.sh"
 
 _need aws-vault
+_need curl
 PORT="${PORT:-9099}"
 NON_INTERACTIVE=0
 PROFILE=""
+DEBUG="${DEBUG:-0}"
+
+# Function to validate if a credential server is working properly
+validate_credential_server() {
+  local url=$1
+  local max_retries=${2:-3}
+  local retry_count=0
+  local success=0
+  
+  [[ "$DEBUG" == "1" ]] && _yellow "Validating credential server at $url"
+  
+  while [[ $retry_count -lt $max_retries && $success -eq 0 ]]; do
+    if curl -s -m 2 "$url" | grep -q "AccessKeyId"; then
+      [[ "$DEBUG" == "1" ]] && _green "Credential server validation successful"
+      success=1
+    else
+      [[ "$DEBUG" == "1" ]] && _yellow "Validation attempt $((retry_count+1))/$max_retries failed, retrying..."
+      sleep 1
+      retry_count=$((retry_count+1))
+    fi
+  done
+  
+  return $((1-success))
+}
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -14,11 +39,16 @@ while [[ $# -gt 0 ]]; do
       NON_INTERACTIVE=1
       shift
       ;;
+    --debug)
+      DEBUG=1
+      shift
+      ;;
     -h|--help)
       echo "Usage: cc-awsvault [OPTIONS] <aws-profile>"
       echo
       echo "Options:"
       echo "  --non-interactive   Run in non-interactive mode (use with automation)"
+      echo "  --debug             Enable debug output"
       echo "  -h, --help          Show this help message"
       echo
       exit 0
@@ -41,10 +71,85 @@ fi
 
 [[ -z "$PROFILE" ]] && _die "Usage: cc-awsvault <aws-profile> (or set AWS_PROFILE)"
 
+# Set up logging
+LOG_DIR="$HOME/.cc/logs"
+ENV_DIR="$HOME/.cc/env"
+mkdir -p "$LOG_DIR" "$ENV_DIR"
+LOG_FILE="$LOG_DIR/awsvault.log"
+
+log() {
+  local level=$1
+  local message=$2
+  echo "$(date +"%Y-%m-%d %H:%M:%S") [$level] $message" >> "$LOG_FILE"
+  
+  case "$level" in
+    INFO)  [[ "$DEBUG" == "1" ]] && _green "$message" || _green "$message" ;;
+    WARN)  _yellow "$message" ;;
+    ERROR) _red "$message" ;;
+    *)     [[ "$DEBUG" == "1" ]] && echo "$message" || echo "$message" ;;
+  esac
+}
+
+log "INFO" "Starting cc-awsvault with profile $PROFILE"
+
+# Use existing log function
+
 # already running?
-if lsof -i :"$PORT" | grep -q aws-vault; then
-  _green "aws-vault credential server already running on port $PORT"
-  exit 0
+if lsof -i | grep -q aws-vault; then
+  running_port=$(lsof -i | grep aws-vault | grep -oE ':[0-9]+' | head -1 | tr -d ':')
+  _green "aws-vault credential server already running on port $running_port"
+  
+  # Check if we have valid credentials stored in env directory
+  if [[ -s "$ENV_DIR/awsvault_url" ]]; then
+    IMDS_URL=$(cat "$ENV_DIR/awsvault_url")
+    AUTH_TOKEN=$(cat "$ENV_DIR/awsvault_token" 2>/dev/null || echo "")
+    
+    log "INFO" "Found existing credential URL: $IMDS_URL"
+    
+    # Test if the credentials are still valid
+    if [[ -n "$AUTH_TOKEN" ]]; then
+      if curl -s -m 2 -H "Authorization: $AUTH_TOKEN" "$IMDS_URL" | grep -q "AccessKeyId"; then
+        log "INFO" "Existing credential server is working properly with token"
+        
+        # Create Docker-compatible URL if needed
+        if [[ "$IMDS_URL" == http://127.0.0.1:* ]]; then
+          PORT=$(echo "$IMDS_URL" | grep -oE ':[0-9]+' | tr -d ':')
+          DOCKER_URL="http://host.docker.internal:${PORT}/"
+        else
+          DOCKER_URL="$IMDS_URL"
+        fi
+        
+        # still echo so caller can `eval $(cc-awsvault …)` if desired
+        echo "export IMDS_URL=$DOCKER_URL"
+        echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=$AUTH_TOKEN"
+        exit 0
+      fi
+    else
+      # Try without token
+      if curl -s -m 2 "$IMDS_URL" | grep -q "AccessKeyId"; then
+        log "INFO" "Existing credential server is working properly"
+        
+        # Create Docker-compatible URL if needed
+        if [[ "$IMDS_URL" == http://127.0.0.1:* ]]; then
+          PORT=$(echo "$IMDS_URL" | grep -oE ':[0-9]+' | tr -d ':')
+          DOCKER_URL="http://host.docker.internal:${PORT}/"
+        else
+          DOCKER_URL="$IMDS_URL"
+        fi
+        
+        # still echo so caller can `eval $(cc-awsvault …)` if desired
+        echo "export IMDS_URL=$DOCKER_URL"
+        exit 0
+      fi
+    fi
+  fi
+  
+  log "WARN" "Existing credential server found but not working properly. Restarting..."
+  
+  # Kill existing process and continue with new server
+  pkill -f "aws-vault.*--ecs-server" || true
+  screen -X -S aws-vault-creds quit >/dev/null 2>&1 || true
+  sleep 2
 fi
 
 _green "Starting aws-vault --server with profile $PROFILE ..."
@@ -67,21 +172,72 @@ if [[ -s "$URL_FILE" ]]; then
     _green "Mapped $ORIG_URL to $URL for container access"
   fi
   
-  # Start the long-running server
-  _green "Starting persistent credential server..."
-  nohup aws-vault exec "$PROFILE" --ecs-server -- sleep infinity >/dev/null 2>&1 &
-  SERVER_PID=$!
-  
-  # Verify the server is running
-  sleep 2
-  if kill -0 $SERVER_PID 2>/dev/null; then
-    _green "Credential server running with PID: $SERVER_PID"
-    # Save PID for management
-    mkdir -p "$HOME/.cc"
-    echo $SERVER_PID > "$HOME/.cc/awsvault_pid"
-  else
-    _red "Warning: Credential server may have failed to start"
+  # Create a short-lived credential server to verify credentials
+  _green "Testing AWS credentials..."
+  if ! aws-vault exec "$PROFILE" -- aws sts get-caller-identity >/dev/null 2>&1; then
+    _red "Failed to get AWS credentials. Please check profile and try again."
+    # Check if the SSO session exists
+    aws-vault list | grep -q "sso.*$PROFILE" || _yellow "No SSO session found. You may need to run 'aws-vault login $PROFILE'"
+    _die "Unable to proceed without working credentials"
   fi
+  
+  # Create log and environment directories
+  LOG_DIR="$HOME/.cc/logs"
+  ENV_DIR="$HOME/.cc/env"
+  mkdir -p "$LOG_DIR" "$ENV_DIR"
+  LOG_FILE="$LOG_DIR/awsvault.log"
+  
+  # Kill any existing aws-vault processes and screen sessions
+  pkill -f "aws-vault.*--ecs-server" 2>/dev/null || true
+  screen -X -S aws-vault-creds quit >/dev/null 2>&1 || true
+  sleep 1
+  
+  _green "Starting persistent credential server with GUI prompt driver..."
+  
+  # Start the credential server using the improved approach with GUI prompt
+  nohup aws-vault exec "$PROFILE" \
+    --prompt=osascript \
+    --ecs-server \
+    -- bash -lc '
+      # Persist the ECS credentials endpoint and token
+      printf "%s\n" "$AWS_CONTAINER_CREDENTIALS_FULL_URI" > '"$ENV_DIR"'/awsvault_url
+      printf "%s\n" "$AWS_CONTAINER_AUTHORIZATION_TOKEN" > '"$ENV_DIR"'/awsvault_token
+      chmod 600 '"$ENV_DIR"'/awsvault_url '"$ENV_DIR"'/awsvault_token
+      # Keep the process alive (portable; avoids "sleep infinity")
+      while :; do sleep 3600; done
+    ' >>"$LOG_FILE" 2>&1 &
+  
+  SERVER_PID=$!
+  _green "Started aws-vault ECS server with PID $SERVER_PID"
+  
+  # Save PID for management
+  echo "$SERVER_PID" > "$HOME/.cc/awsvault_pid"
+  
+  # Wait for the credential server to start
+  _green "Waiting for credential server to start and write URL..."
+  MAX_WAIT=10
+  for i in $(seq 1 $MAX_WAIT); do
+    if [[ -s "$ENV_DIR/awsvault_url" ]]; then
+      _green "Credential server started successfully after $i seconds"
+      break
+    fi
+    
+    if [[ $i -eq $MAX_WAIT ]]; then
+      _red "Timed out waiting for credential server to write URL"
+      # Check if process is still running
+      if kill -0 $SERVER_PID 2>/dev/null; then
+        _yellow "Process is still running, but URL not written yet. Check logs:"
+        _yellow "tail -f $LOG_FILE"
+      else
+        _red "Process has terminated. Check logs for details:"
+        _yellow "cat $LOG_FILE"
+        _die "Could not start credential server"
+      fi
+    fi
+    
+    echo -n "."
+    sleep 1
+  done
   
   # Clean up temporary file
   rm "$URL_FILE"
@@ -119,9 +275,57 @@ else
   fi
 fi
 
-# save URL for future shells
-mkdir -p "$HOME/.cc"
-echo "$URL" > "$HOME/.cc/awsvault_url"
-
-# still echo so caller can `eval $(cc-awsvault …)` if desired
-echo "export IMDS_URL=$URL"
+# Read URL and token from the environment directory
+if [[ -s "$ENV_DIR/awsvault_url" ]]; then
+  IMDS_URL=$(cat "$ENV_DIR/awsvault_url")
+  AUTH_TOKEN=$(cat "$ENV_DIR/awsvault_token" 2>/dev/null || echo "")
+  
+  # Validate that the credential server is actually serving credentials
+  _green "Validating credential server..."
+  
+  if [[ -n "$AUTH_TOKEN" ]]; then
+    # Check with authorization token
+    if curl -s -m 2 -H "Authorization: $AUTH_TOKEN" "$IMDS_URL" | grep -q "AccessKeyId"; then
+      _green "✓ Credential server validation with token successful!"
+    else
+      _yellow "⚠ Credential validation with token failed. Trying without token..."
+      if curl -s -m 2 "$IMDS_URL" | grep -q "AccessKeyId"; then
+        _green "✓ Credential server validation without token successful!"
+      else
+        _yellow "⚠ Could not validate credential server. It may still be starting up or there might be an issue."
+        _yellow "Try running: curl -v -H \"Authorization: \$AUTH_TOKEN\" $IMDS_URL"
+        _yellow "If this continues to fail, try restarting the credential server or running 'aws-vault login $PROFILE'."
+      fi
+    fi
+  else
+    # Try without token
+    if curl -s -m 2 "$IMDS_URL" | grep -q "AccessKeyId"; then
+      _green "✓ Credential server validation successful!"
+    else
+      _yellow "⚠ Could not validate credential server. It may still be starting up or there might be an issue."
+      _yellow "Try running: curl -v $IMDS_URL"
+      _yellow "If this continues to fail, try restarting the credential server or running 'aws-vault login $PROFILE'."
+    fi
+  fi
+  
+  # Create Docker-compatible URL if needed
+  if [[ "$IMDS_URL" == http://127.0.0.1:* ]]; then
+    PORT=$(echo "$IMDS_URL" | grep -oE ':[0-9]+' | tr -d ':')
+    DOCKER_URL="http://host.docker.internal:${PORT}/"
+    _green "Mapped $IMDS_URL to $DOCKER_URL for container access"
+  else
+    DOCKER_URL="$IMDS_URL"
+  fi
+  
+  # No longer saving URL in the old location - only using env directory
+  # Token is already saved in the env directory
+  
+  # still echo so caller can `eval $(cc-awsvault …)` if desired
+  echo "export IMDS_URL=$DOCKER_URL"
+  if [[ -n "$AUTH_TOKEN" ]]; then
+    echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=$AUTH_TOKEN"
+  fi
+else
+  _red "Error: Could not find credential server URL file."
+  _die "Credential server may not have started correctly. Check logs at $LOG_FILE"
+fi

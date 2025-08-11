@@ -2,7 +2,7 @@
 # aws-cred-monitor.sh - Monitors the AWS credential file for changes
 set -e
 
-CRED_FILE="/host/.cc/awsvault_url"
+CRED_FILE="/host/.cc/env/awsvault_url"
 LOG_FILE="/tmp/aws_cred_monitor.log"
 CHECK_INTERVAL=30  # seconds
 
@@ -17,7 +17,7 @@ log_message "Check interval: $CHECK_INTERVAL seconds"
 
 # Initial load of credentials
 if [[ -f "$CRED_FILE" ]]; then
-  source /usr/local/bin/aws-cred-refresh
+  source /usr/local/bin/aws-cred-refresh.sh
   log_message "Initial credentials loaded"
 else
   log_message "WARNING: Credential file not found at startup"
@@ -31,7 +31,7 @@ while true; do
     
     if [[ -n "$LAST_MTIME" && "$CURRENT_MTIME" != "$LAST_MTIME" ]]; then
       log_message "Credential file changed, refreshing..."
-      source /usr/local/bin/aws-cred-refresh
+      source /usr/local/bin/aws-cred-refresh.sh
     fi
     
     LAST_MTIME="$CURRENT_MTIME"
