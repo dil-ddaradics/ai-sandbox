@@ -19,7 +19,7 @@ echo
 
 # Test 2: Source refresh script and check env var
 echo -n "Test 2: Running refresh script... "
-source /usr/local/bin/aws-cred-refresh
+source /usr/local/bin/aws-cred-refresh.sh
 if [[ -n "$AWS_CONTAINER_CREDENTIALS_FULL_URI" ]]; then
   echo "PASSED"
   echo "  IMDS URL: $AWS_CONTAINER_CREDENTIALS_FULL_URI"
@@ -47,7 +47,7 @@ echo "  Changing URL in memory..."
 export AWS_CONTAINER_CREDENTIALS_FULL_URI="http://host.docker.internal:9999/"
 echo "  New URL: $AWS_CONTAINER_CREDENTIALS_FULL_URI"
 echo "  Refreshing from file..."
-source /usr/local/bin/aws-cred-refresh
+source /usr/local/bin/aws-cred-refresh.sh
 echo "  After refresh: $AWS_CONTAINER_CREDENTIALS_FULL_URI"
 echo
 
@@ -64,7 +64,7 @@ echo
 
 # Test 6: Test AWS connectivity
 echo -n "Test 6: Testing AWS credential server connectivity... "
-if /usr/local/bin/aws-connectivity-check > /tmp/connectivity.log 2>&1; then
+if /usr/local/bin/aws-connectivity-check.sh > /tmp/connectivity.log 2>&1; then
   echo "PASSED"
   echo "  Credential server is reachable and providing valid credentials"
 else

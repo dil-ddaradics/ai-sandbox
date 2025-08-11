@@ -1,11 +1,14 @@
 services:
   dev:
-    build: .
-    container_name: ${CC_CONTAINER_NAME}
+    build:
+      context: ..
+      dockerfile: .ai/Dockerfile
+    container_name: ${AI_CONTAINER_NAME:-cc_container_name}
     working_dir: /workspace
     volumes:
       - ${WORKTREE}:/workspace
-      - ${HOME}/.cc:/host/.cc:ro
+      - ${HOME}/.ai:/host/.ai:ro
+      - ${HOME}/.cc:/host/.cc:ro  # For backward compatibility
     environment:
       - AWS_CONTAINER_CREDENTIALS_FULL_URI=${IMDS_URL}
       - AWS_CONTAINER_AUTHORIZATION_TOKEN=${AWS_CONTAINER_AUTHORIZATION_TOKEN:-}

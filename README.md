@@ -37,7 +37,7 @@ git clone https://github.com/dil-ddaradics/ai-sandbox.git
 
 ### Path Integration
 
-AI Sandbox supports two ways to access the `cc-*` commands from anywhere in your repository:
+AI Sandbox supports two ways to access the `ai-*` commands from anywhere in your repository:
 
 1. **With direnv** (recommended): If you have [direnv](https://direnv.net/) installed, the installation script will automatically configure `.envrc` to add the scripts to your PATH when you navigate to your repository.
 
@@ -45,30 +45,30 @@ AI Sandbox supports two ways to access the `cc-*` commands from anywhere in your
    - Run commands from your repository root
    - Add the scripts directory to your PATH manually: 
      ```bash
-     export PATH="$PATH:/path/to/your/repo/.cc/scripts"
+     export PATH="$PATH:/path/to/your/repo/.ai/scripts"
      ```
 
 ## Usage
 
 ```bash
 # Credential Management
-cc-awsvault dev-sso        # Start credential server (run once)
-cc-list-creds              # List running credential servers
-cc-awsvault-stop           # Stop credential server
-cc-test-creds              # Test credential handling in a container
+ai-awsvault dev-sso        # Start credential server (run once)
+ai-list-creds              # List running credential servers
+ai-awsvault-stop           # Stop credential server
+ai-test-creds              # Test credential handling in a container
 
 # Container Management
-cc-up                      # Spin up container + work-tree for current branch
-cc-up feature/other        # Or directly specify a branch (will create if needed)
-cc-chat                    # Open Claude chat interface
-cc-stop                    # Stop the container when done for the day
-cc-clean                   # Clean up the work-tree and container
-cc-clean --all             # Clean up and also stop credential server
+ai-up                      # Spin up container + work-tree for current branch
+ai-up feature/other        # Or directly specify a branch (will create if needed)
+ai-chat                    # Open Claude chat interface
+ai-stop                    # Stop the container when done for the day
+ai-clean                   # Clean up the work-tree and container
+ai-clean --all             # Clean up and also stop credential server
 ```
 
 ## Configuration
 
-You can override default settings by creating a `.cc/.ccenv` file in your repository:
+You can override default settings by creating a `.ai/.aienv` file in your repository:
 
 ```bash
 # Claude / Bedrock
@@ -92,7 +92,7 @@ AI Sandbox creates an isolated development environment for each Git branch by:
 3. **Running isolated containers**: Spins up Docker containers that mount your branch-specific code
 4. **Connecting to Claude**: Uses AWS Bedrock to access Claude inside your container
 
-When you run `cc-awsvault`, it starts an AWS credential server and saves the connection URL. This URL persists between terminal sessions, so you only need to run it once per machine reboot. The containers have a dynamic credential system that monitors for credential URL changes, so even if the credential server restarts with a different URL, your containers will automatically reconnect without needing to be restarted. When you run `cc-up`, it creates a separate worktree for your current branch and launches a container with that code mounted inside.
+When you run `ai-awsvault`, it starts an AWS credential server and saves the connection URL. This URL persists between terminal sessions, so you only need to run it once per machine reboot. The containers have a dynamic credential system that monitors for credential URL changes, so even if the credential server restarts with a different URL, your containers will automatically reconnect without needing to be restarted. When you run `ai-up`, it creates a separate worktree for your current branch and launches a container with that code mounted inside.
 
 ### Credential Handling Flow
 
@@ -100,8 +100,8 @@ When you run `cc-awsvault`, it starts an AWS credential server and saves the con
 flowchart TB
     subgraph Host Machine
         aws["aws-vault\nCredential Server"]
-        url["~/.cc/awsvault_url\nStored URL"]
-        cc-awsvault["cc-awsvault\nScript"]
+        url["~/.ai/awsvault_url\nStored URL"]
+        ai-awsvault["ai-awsvault\nScript"]
     end
     
     subgraph Docker Container
@@ -112,9 +112,9 @@ flowchart TB
         aws_ops["AWS Operations\n(Claude Code)"]
     end
     
-    cc-awsvault -->|"1. Starts server\nand writes URL"| aws
-    cc-awsvault -->|"2. Saves URL"| url
-    url -->|"3. Mounted as\n/host/.cc/awsvault_url"| monitor
+    ai-awsvault -->|"1. Starts server\nand writes URL"| aws
+    ai-awsvault -->|"2. Saves URL"| url
+    url -->|"3. Mounted as\n/host/.ai/awsvault_url"| monitor
     entrypoint -->|"4. Runs at\ncontainer start"| monitor
     entrypoint -->|"5. Initial\ncredential load"| refresh
     monitor -->|"6. Periodically\nchecks for changes"| url
@@ -126,15 +126,15 @@ flowchart TB
     classDef hostNode fill:#e1f5fe,stroke:#0277bd,stroke-width:2px;
     classDef containerNode fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
     
-    class aws,url,cc-awsvault hostNode;
+    class aws,url,ai-awsvault hostNode;
     class monitor,refresh,entrypoint,env_file,aws_ops containerNode;
 ```
 
 The diagram illustrates how credentials flow through the system:
 
-1. The `cc-awsvault` script starts the credential server and writes the URL
-2. The URL is saved to `~/.cc/awsvault_url` on the host machine
-3. This file is mounted into the container as `/host/.cc/awsvault_url`
+1. The `ai-awsvault` script starts the credential server and writes the URL
+2. The URL is saved to `~/.ai/awsvault_url` on the host machine
+3. This file is mounted into the container as `/host/.ai/awsvault_url`
 4. When a container starts, the entrypoint script launches a monitor process
 5. The entrypoint also loads credentials initially
 6. The monitor process periodically checks if the URL file has changed
@@ -149,7 +149,7 @@ The result is a clean, isolated environment where you can work with Claude on ea
 
 - **Add packages**: Edit `Dockerfile` and rebuild
 - **Database sidecar**: Extend `docker-compose.yml`
-- **Resource limits**: Set `CPU_LIMIT` / `MEM_LIMIT` in `.ccenv`
+- **Resource limits**: Set `CPU_LIMIT` / `MEM_LIMIT` in `.aienv`
 
 ## Uninstallation
 
@@ -160,7 +160,7 @@ The result is a clean, isolated environment where you can work with Claude on ea
 
 The uninstallation process:
 1. Stops any running containers associated with the repository
-2. Removes the `.cc` directory containing all scripts and configuration
+2. Removes the `.ai` directory containing all scripts and configuration
 3. Cleans up PATH entries in `.envrc` if direnv is installed
 4. Provides guidance for manual PATH cleanup if needed
 

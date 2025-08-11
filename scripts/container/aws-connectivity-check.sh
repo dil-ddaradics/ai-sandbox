@@ -23,7 +23,7 @@ success_message() {
 }
 
 # Make sure credentials are refreshed
-source /usr/local/bin/aws-cred-refresh
+source /usr/local/bin/aws-cred-refresh.sh
 
 # Check if AWS_CONTAINER_CREDENTIALS_FULL_URI is set
 if [[ -z "${AWS_CONTAINER_CREDENTIALS_FULL_URI:-}" ]]; then

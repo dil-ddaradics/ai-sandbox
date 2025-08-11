@@ -16,7 +16,7 @@ update_gitignore() {
   fi
   
   # Add entries to .gitignore if they don't already exist
-  for entry in ".cc/" ".envrc"; do
+  for entry in ".ai/" ".envrc"; do
     if ! grep -q "^$entry$" "$gitignore_path"; then
       echo "$entry" >> "$gitignore_path"
       echo "✔ Added $entry to .gitignore"
@@ -27,6 +27,7 @@ update_gitignore() {
 # Process command line arguments
 USE_DIRENV=1
 NON_INTERACTIVE=0
+FORCE_DOCKER=0
 TARGET=""
 
 for arg in "$@"; do
@@ -37,12 +38,16 @@ for arg in "$@"; do
     --non-interactive)
       NON_INTERACTIVE=1
       ;;
+    -f|--force)
+      FORCE_DOCKER=1
+      ;;
     --help)
       echo "Usage: install.sh [OPTIONS] /path/to/repo"
       echo
       echo "Options:"
       echo "  --no-direnv         Don't use direnv for PATH integration"
       echo "  --non-interactive   Run in non-interactive mode (no prompts)"
+      echo "  -f, --force         Force overwrite of Dockerfile and docker-compose.yml"
       echo "  --help              Show this help message"
       echo
       exit 0
@@ -64,33 +69,54 @@ fi
 # Validate target is a git repo
 [[ ! -d "$TARGET/.git" ]] && { echo "✖ $TARGET is not a Git repo"; exit 1; }
 
-mkdir -p "$TARGET/.cc/scripts"
-cp -R "$SCRIPT_DIR/scripts"/* "$TARGET/.cc/scripts/"
-cp "$SCRIPT_DIR/scripts/templates/.ccenv.example" "$TARGET/.cc/.ccenv.example"
+mkdir -p "$TARGET/.ai/scripts"
+cp -R "$SCRIPT_DIR/scripts"/* "$TARGET/.ai/scripts/"
+
+# Make sure templates directory exists
+mkdir -p "$TARGET/.ai/templates"
+cp "$SCRIPT_DIR/scripts/templates/.ccenv.example" "$TARGET/.ai/.aienv.example"
+
+# Copy Docker-related files only if FORCE_DOCKER flag is set or files don't exist
+if [[ "$FORCE_DOCKER" -eq 1 ]] || [[ ! -f "$TARGET/.ai/docker-compose.yml" ]]; then
+  echo "Copying docker-compose.yml to $TARGET/.ai/"
+  cp "$SCRIPT_DIR/docker-compose.yml" "$TARGET/.ai/"
+else
+  echo "Skipping docker-compose.yml (use -f to override)"
+fi
+
+if [[ "$FORCE_DOCKER" -eq 1 ]] || [[ ! -f "$TARGET/.ai/Dockerfile" ]]; then
+  echo "Copying Dockerfile to $TARGET/.ai/"
+  cp "$SCRIPT_DIR/Dockerfile" "$TARGET/.ai/"
+else
+  echo "Skipping Dockerfile (use -f to override)"
+fi
+
+# Ensure the container scripts are executable
+chmod +x "$TARGET/.ai/scripts/container/"*.sh
 
 # Set the USE_DIRENV configuration value
-if [[ -f "$TARGET/.cc/.ccenv" ]]; then
+if [[ -f "$TARGET/.ai/.aienv" ]]; then
   # Update existing file if it exists
-  if grep -q "^USE_DIRENV=" "$TARGET/.cc/.ccenv"; then
-    sed -i.bak "s/^USE_DIRENV=.*/USE_DIRENV=$USE_DIRENV/" "$TARGET/.cc/.ccenv"
-    rm -f "$TARGET/.cc/.ccenv.bak"
+  if grep -q "^USE_DIRENV=" "$TARGET/.ai/.aienv"; then
+    sed -i.bak "s/^USE_DIRENV=.*/USE_DIRENV=$USE_DIRENV/" "$TARGET/.ai/.aienv"
+    rm -f "$TARGET/.ai/.aienv.bak"
   else
-    echo "USE_DIRENV=$USE_DIRENV" >> "$TARGET/.cc/.ccenv"
+    echo "USE_DIRENV=$USE_DIRENV" >> "$TARGET/.ai/.aienv"
   fi
 else
   # Create new file if it doesn't exist
-  echo "USE_DIRENV=$USE_DIRENV" > "$TARGET/.cc/.ccenv"
+  echo "USE_DIRENV=$USE_DIRENV" > "$TARGET/.ai/.aienv"
 fi
 
 # Handle PATH integration based on direnv preference
 if [[ "$USE_DIRENV" -eq 1 ]] && command -v direnv &> /dev/null; then
     # Use direnv if enabled and available
-    echo 'export PATH="$PATH:$(git rev-parse --show-toplevel)/.cc/scripts"' >> "$TARGET/.envrc" || true
+    echo 'export PATH="$PATH:$(git rev-parse --show-toplevel)/.ai/scripts"' >> "$TARGET/.envrc" || true
     echo "✔ Added scripts to PATH via direnv (.envrc)"
 else
     # Don't use direnv - provide manual PATH instructions
-    SCRIPTS_PATH="$TARGET/.cc/scripts"
-    echo "ℹ️ Using non-direnv mode. To use the cc-* commands from anywhere:"
+    SCRIPTS_PATH="$TARGET/.ai/scripts"
+    echo "ℹ️ Using non-direnv mode. To use the ai-* commands from anywhere:"
     echo "  Add the scripts to your PATH manually:"
     echo "    export PATH=\"\$PATH:$SCRIPTS_PATH\""
 fi

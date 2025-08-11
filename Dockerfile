@@ -10,11 +10,11 @@ ENV CLAUDE_CODE_USE_BEDROCK=1 \
 # Create AWS credential scripts
 RUN mkdir -p /usr/local/bin
 # Use simple script names without path prefixes for Docker context
-COPY scripts/container/aws-cred-refresh.sh /usr/local/bin/aws-cred-refresh.sh
-COPY scripts/container/aws-cred-monitor.sh /usr/local/bin/aws-cred-monitor.sh
-COPY scripts/container/aws-connectivity-check.sh /usr/local/bin/aws-connectivity-check.sh
-COPY scripts/container/entrypoint.sh /usr/local/bin/container-entrypoint
-COPY scripts/container/test-cred-refresh.sh /usr/local/bin/test-cred-refresh.sh
+COPY ./scripts/container/aws-cred-refresh.sh /usr/local/bin/aws-cred-refresh.sh
+COPY ./scripts/container/aws-cred-monitor.sh /usr/local/bin/aws-cred-monitor.sh
+COPY ./scripts/container/aws-connectivity-check.sh /usr/local/bin/aws-connectivity-check.sh
+COPY ./scripts/container/entrypoint.sh /usr/local/bin/container-entrypoint
+COPY ./scripts/container/test-cred-refresh.sh /usr/local/bin/test-cred-refresh.sh
 RUN chmod +x /usr/local/bin/aws-cred-refresh.sh /usr/local/bin/aws-cred-monitor.sh /usr/local/bin/aws-connectivity-check.sh /usr/local/bin/container-entrypoint /usr/local/bin/test-cred-refresh.sh && \
     ls -la /usr/local/bin/
 

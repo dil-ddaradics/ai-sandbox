@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cc-prompt - One-shot Claude command wrapper for testing
+# ai-prompt - One-shot Claude command wrapper for testing
 # This script runs claude with a prompt and captures output
 
 set -euo pipefail
@@ -18,7 +18,7 @@ _blue() { printf "${BLUE}%s${NC}\n" "$*"; }
 
 # Usage function
 usage() {
-  echo "Usage: cc-prompt [OPTIONS] [CONTAINER_NAME] \"PROMPT\""
+  echo "Usage: ai-prompt [OPTIONS] [CONTAINER_NAME] \"PROMPT\""
   echo
   echo "Options:"
   echo "  --output FILE      Save output to file"
@@ -26,9 +26,9 @@ usage() {
   echo "  --help             Show this help message"
   echo
   echo "Examples:"
-  echo "  cc-prompt \"What is Docker?\""
-  echo "  cc-prompt cc-main \"Explain Git worktrees in simple terms\""
-  echo "  cc-prompt --output result.txt \"List all files in this directory\""
+  echo "  ai-prompt \"What is Docker?\""
+  echo "  ai-prompt ai-main \"Explain Git worktrees in simple terms\""
+  echo "  ai-prompt --output result.txt \"List all files in this directory\""
   echo
   exit 1
 }
@@ -63,7 +63,7 @@ while [[ $# -gt 0 ]]; do
         # If we don't have a prompt yet, this might be either the container or the prompt
         if [[ -z "$CONTAINER_NAME" ]]; then
           # If we don't have a container name, check if this looks like a container name
-          if [[ "$1" =~ ^cc-.* && $# -gt 1 ]]; then
+          if [[ "$1" =~ ^(cc-|ai-).* && $# -gt 1 ]]; then
             CONTAINER_NAME="$1"
             shift
           else
@@ -95,16 +95,20 @@ determine_container() {
   local container_file
   
   cwd=$(pwd)
-  container_file="${cwd}/.cc-container"
+  container_file="${cwd}/.ai-container"
+  # Check for legacy container file if new one doesn't exist
+  if [[ ! -f "$container_file" ]]; then
+    container_file="${cwd}/.cc-container"
+  fi
   
   if [[ -f "$container_file" ]]; then
     cat "$container_file"
     return 0
   fi
   
-  # Look for any running cc- container
+  # Look for any running ai- or cc- container
   local running_container
-  running_container=$(docker ps --format "{{.Names}}" | grep "^cc-" | head -n 1)
+  running_container=$(docker ps --format "{{.Names}}" | grep -E "^(ai-|cc-)" | head -n 1)
   
   if [[ -n "$running_container" ]]; then
     echo "$running_container"

@@ -15,10 +15,19 @@ _need() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_REPO="$(git -C "$SCRIPT_DIR/../.." rev-parse --show-toplevel 2>/dev/null || true)"
 
-# repo‑local env overrides
-[[ -f "$ROOT_REPO/.cc/.ccenv" ]] && source "$ROOT_REPO/.cc/.ccenv"
-# user‑global overrides
-[[ -f "$HOME/.ccenv" ]] && source "$HOME/.ccenv"
+# repo‑local env overrides - try new location first, fallback to legacy
+if [[ -f "$ROOT_REPO/.ai/.aienv" ]]; then
+  source "$ROOT_REPO/.ai/.aienv"
+elif [[ -f "$ROOT_REPO/.cc/.ccenv" ]]; then
+  source "$ROOT_REPO/.cc/.ccenv"
+fi
+
+# user‑global overrides - try new location first, fallback to legacy
+if [[ -f "$HOME/.aienv" ]]; then
+  source "$HOME/.aienv"
+elif [[ -f "$HOME/.ccenv" ]]; then
+  source "$HOME/.ccenv"
+fi
 
 # defaults
 USE_DIRENV="${USE_DIRENV:-1}"
@@ -29,8 +38,13 @@ CPU_LIMIT="${CPU_LIMIT:-}"
 MEM_LIMIT="${MEM_LIMIT:-}"
 
 # Auto-load IMDS URL if not already in env
-if [[ -z "${IMDS_URL:-}" && -f "$HOME/.cc/awsvault_url" ]]; then
-  IMDS_URL=$(< "$HOME/.cc/awsvault_url")
+if [[ -z "${IMDS_URL:-}" ]]; then
+  # Try new location first, fallback to legacy
+  if [[ -f "$HOME/.ai/awsvault_url" ]]; then
+    IMDS_URL=$(< "$HOME/.ai/awsvault_url")
+  elif [[ -f "$HOME/.cc/awsvault_url" ]]; then
+    IMDS_URL=$(< "$HOME/.cc/awsvault_url")
+  fi
 fi
 
 # Handle PATH management for non-direnv mode

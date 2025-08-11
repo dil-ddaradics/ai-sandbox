@@ -2,7 +2,7 @@
 # aws-cred-refresh.sh - Refreshes AWS credentials from mounted host file
 set -e
 
-CRED_FILE="/host/.cc/env/awsvault_url"
+CRED_FILE="/host/.ai/env/awsvault_url"
 ENV_FILE="/tmp/.aws_cred_env"
 PROXY_PORT="${PROXY_PORT:-55491}"
 
@@ -16,10 +16,17 @@ if [[ -n "$AWS_CONTAINER_CREDENTIALS_FULL_URI" && "$AWS_CONTAINER_CREDENTIALS_FU
   log_message "Using existing proxy URL: $AWS_CONTAINER_CREDENTIALS_FULL_URI"
   NEW_URL="$AWS_CONTAINER_CREDENTIALS_FULL_URI"
 else
-  # Check if credential file exists
+  # Check if credential file exists in new location
   if [[ ! -f "$CRED_FILE" ]]; then
-    log_message "ERROR: AWS credential file not found at $CRED_FILE"
-    return 1
+    # Try the legacy location as fallback
+    OLD_CRED_FILE="/host/.cc/env/awsvault_url"
+    if [[ -f "$OLD_CRED_FILE" ]]; then
+      log_message "Using legacy credential file at $OLD_CRED_FILE"
+      CRED_FILE="$OLD_CRED_FILE"
+    else
+      log_message "ERROR: AWS credential file not found at $CRED_FILE"
+      return 1
+    fi
   fi
 
   # Read the URL from the file
@@ -41,10 +48,17 @@ log_message "Enforcing proxy URL: $NEW_URL"
 
 # Read the authorization token if needed
 if [[ -z "$AWS_CONTAINER_AUTHORIZATION_TOKEN" ]]; then
-  AUTH_TOKEN_FILE="/host/.cc/env/awsvault_token"
+  AUTH_TOKEN_FILE="/host/.ai/env/awsvault_token"
   if [[ -f "$AUTH_TOKEN_FILE" ]]; then
     export AWS_CONTAINER_AUTHORIZATION_TOKEN=$(cat "$AUTH_TOKEN_FILE")
     log_message "Read authorization token from file"
+  else
+    # Try the legacy location as fallback
+    OLD_AUTH_TOKEN_FILE="/host/.cc/env/awsvault_token"
+    if [[ -f "$OLD_AUTH_TOKEN_FILE" ]]; then
+      export AWS_CONTAINER_AUTHORIZATION_TOKEN=$(cat "$OLD_AUTH_TOKEN_FILE")
+      log_message "Read authorization token from legacy file"
+    fi
   fi
 fi
 

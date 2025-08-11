@@ -11,7 +11,13 @@ fi
 # Set up socat proxy for AWS credential server
 # Read host aws-vault port from the mounted file
 echo "Setting up AWS credential proxy..."
-CRED_FILE="/host/.cc/env/awsvault_url"
+CRED_FILE="/host/.ai/env/awsvault_url"
+# Check for legacy file location
+if [[ ! -f "$CRED_FILE" && -f "/host/.cc/env/awsvault_url" ]]; then
+  CRED_FILE="/host/.cc/env/awsvault_url"
+  echo "Using legacy credential file location: $CRED_FILE"
+fi
+
 if [[ -f "$CRED_FILE" ]]; then
   PORT=$(sed -n 's#.*:\([0-9][0-9]*\).*#\1#p' "$CRED_FILE")
   : "${PORT:=54491}"
@@ -30,7 +36,13 @@ if [[ -f "$CRED_FILE" ]]; then
   export AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:${PROXY_PORT}/"
   
   # Read the authorization token
-  AUTH_TOKEN_FILE="/host/.cc/env/awsvault_token"
+  AUTH_TOKEN_FILE="/host/.ai/env/awsvault_token"
+  # Check for legacy token file
+  if [[ ! -f "$AUTH_TOKEN_FILE" && -f "/host/.cc/env/awsvault_token" ]]; then
+    AUTH_TOKEN_FILE="/host/.cc/env/awsvault_token"
+    echo "Using legacy token file location: $AUTH_TOKEN_FILE"
+  fi
+  
   if [[ -f "$AUTH_TOKEN_FILE" ]]; then
     export AWS_CONTAINER_AUTHORIZATION_TOKEN=$(cat "$AUTH_TOKEN_FILE")
     echo "Read authorization token from $AUTH_TOKEN_FILE"

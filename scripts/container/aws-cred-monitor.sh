@@ -2,7 +2,7 @@
 # aws-cred-monitor.sh - Monitors the AWS credential file for changes
 set -e
 
-CRED_FILE="/host/.cc/env/awsvault_url"
+CRED_FILE="/host/.ai/env/awsvault_url"
 LOG_FILE="/tmp/aws_cred_monitor.log"
 CHECK_INTERVAL=30  # seconds
 
@@ -14,6 +14,12 @@ log_message() {
 log_message "AWS credential monitor starting..."
 log_message "Watching file: $CRED_FILE"
 log_message "Check interval: $CHECK_INTERVAL seconds"
+
+# Check for legacy file location
+if [[ ! -f "$CRED_FILE" && -f "/host/.cc/env/awsvault_url" ]]; then
+  CRED_FILE="/host/.cc/env/awsvault_url"
+  log_message "Using legacy credential file location: $CRED_FILE"
+fi
 
 # Initial load of credentials
 if [[ -f "$CRED_FILE" ]]; then
