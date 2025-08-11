@@ -89,7 +89,8 @@ fi
 
 # Set up worktree path and container name
 WORKTREE_DIR="$WT_ROOT/$REPO_NAME/$TARGET_BRANCH"
-CTR="cc-${TARGET_BRANCH//\//-}"
+# Include repo name in container name to avoid collisions between different repos
+CTR="cc-${REPO_NAME}-${TARGET_BRANCH//\//-}"
 
 # Check if container already exists and is running
 if docker ps --format "{{.Names}}" | grep -q "^$CTR$"; then
@@ -108,7 +109,35 @@ fi
 # Ensure worktree exists
 if [[ ! -d "$WORKTREE_DIR" ]]; then
   _green "Creating worktree for $TARGET_BRANCH at $WORKTREE_DIR"
-  git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH"
+  
+  # Check if this is the main branch and we're in the main worktree
+  MAIN_BRANCH=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || echo "master")
+  CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD)"
+  
+  if [[ "$TARGET_BRANCH" == "$MAIN_BRANCH" && "$CURRENT_BRANCH" == "$TARGET_BRANCH" ]]; then
+    _yellow "Warning: Attempting to create a worktree for the same branch ($TARGET_BRANCH) that we're currently on."
+    _green "Will use current directory as the worktree instead of creating a new one."
+    # Use the current directory as the worktree
+    WORKTREE_DIR="$REPO_ROOT"
+  else
+    # Try to add the worktree, handle errors
+    if ! git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH" 2>/dev/null; then
+      # Check if worktree already exists elsewhere
+      EXISTING_WORKTREE=$(git worktree list | grep "$TARGET_BRANCH" | awk '{print $1}')
+      
+      if [[ -n "$EXISTING_WORKTREE" ]]; then
+        _yellow "Worktree for $TARGET_BRANCH already exists at $EXISTING_WORKTREE"
+        _green "Using existing worktree location"
+        WORKTREE_DIR="$EXISTING_WORKTREE"
+      else
+        _red "Failed to create worktree. Trying alternate method..."
+        # Try to prune any stale worktrees
+        git worktree prune
+        # Try again
+        git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH" || _die "Could not create worktree for $TARGET_BRANCH"
+      fi
+    fi
+  fi
 fi
 
 # Check if IMDS_URL is available, but don't fail if not - dynamic credential handling will try to load it
@@ -139,7 +168,14 @@ MEM_LIMIT=$MEM_LIMIT
 EOF
 
 # Start container
-docker compose --env-file "$ENV_FILE" up -d dev
+# Check if docker compose subcommand exists, otherwise use docker-compose
+# Also set the build context to the repository root where scripts/container is located
+if docker compose version &>/dev/null; then
+  cd "$REPO_ROOT" && docker compose --env-file "$ENV_FILE" -f "$REPO_ROOT/docker-compose.yml" up --build -d dev
+else
+  # Use docker-compose for older versions
+  cd "$REPO_ROOT" && docker-compose --env-file "$ENV_FILE" -f "$REPO_ROOT/docker-compose.yml" up --build -d dev
+fi
 
 echo "$CTR" > "$WORKTREE_DIR/.cc-container"
 _green "✔ Container $CTR running for $TARGET_BRANCH at $WORKTREE_DIR"

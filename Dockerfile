@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-RUN apk add --no-cache bash curl git nodejs npm python3 py3-pip tini inotify-tools
+RUN apk add --no-cache bash curl git nodejs npm python3 py3-pip tini inotify-tools aws-cli
 
 RUN npm install -g @anthropic-ai/claude-code
 
