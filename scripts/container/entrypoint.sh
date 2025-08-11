@@ -12,7 +12,7 @@ source /usr/local/bin/aws-cred-refresh.sh
 /usr/local/bin/aws-cred-monitor.sh &
 
 # Keep container running indefinitely with sleep loop
-echo "Container started and running in background mode"
+echo "Container started and running in background mode - with rebuild test"
 while true; do
   sleep 3600
 done
