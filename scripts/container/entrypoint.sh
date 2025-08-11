@@ -8,6 +8,11 @@ echo "source /usr/local/bin/aws-cred-refresh.sh" > /root/.bashrc
 # Initial load of AWS credentials
 source /usr/local/bin/aws-cred-refresh.sh
 
-# Run credential monitor in foreground to keep container alive
-# This keeps the container running indefinitely
-exec /usr/local/bin/aws-cred-monitor.sh
+# Start credential monitor in background
+/usr/local/bin/aws-cred-monitor.sh &
+
+# Keep container running indefinitely with sleep loop
+echo "Container started and running in background mode"
+while true; do
+  sleep 3600
+done
