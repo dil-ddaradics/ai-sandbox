@@ -79,6 +79,7 @@ cp -R "$SCRIPT_DIR/scripts"/* "$TARGET/.ai/scripts/"
 
 # Make sure templates directory exists
 mkdir -p "$TARGET/.ai/templates"
+cp -R "$SCRIPT_DIR/.ai/templates/"* "$TARGET/.ai/templates/" 2>/dev/null || true
 cp "$SCRIPT_DIR/scripts/templates/.aienv.example" "$TARGET/.ai/.aienv.example"
 
 # Set the AWS_REGION configuration value
@@ -142,6 +143,9 @@ fi
 
 # Update .gitignore to exclude AI sandbox files
 update_gitignore "$TARGET"
+
+# Copy README.md
+cp "$SCRIPT_DIR/README.md" "$TARGET/" 2>/dev/null || true
 
 echo "✔ AI sandbox scripts installed in $TARGET"
 echo "ℹ️ Run the commands from the repository root or add the scripts to your PATH"

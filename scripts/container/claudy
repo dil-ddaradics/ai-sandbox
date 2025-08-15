@@ -1,0 +1,5 @@
+#!/bin/bash
+# claudy - A wrapper for claude to run as a non-root user with permissions bypass
+
+# Source AWS credentials before running claude
+exec gosu claude-user bash -c "source /etc/profile.d/aws-credentials.sh && claude --dangerously-skip-permissions $*"

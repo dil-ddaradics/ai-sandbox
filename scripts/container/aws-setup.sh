@@ -88,7 +88,8 @@ update_auth_token() {
 export AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:${PROXY_PORT}/"
 export AWS_CONTAINER_AUTHORIZATION_TOKEN="$auth_token"
 EOF
-  chmod +x "$ENV_FILE"
+  # Make file executable but also readable by other users
+  chmod 644 "$ENV_FILE"
   
   return 0
 }

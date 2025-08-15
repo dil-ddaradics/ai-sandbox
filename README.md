@@ -145,6 +145,15 @@ The diagram illustrates how credentials flow through the system:
 
 The result is a clean, isolated environment where you can work with Claude on each branch without interference from other branches or projects.
 
+### Claude Configuration
+
+The container is pre-configured with a `~/.claude.json` file for the claude-user that:
+
+- Skips the initial Claude onboarding process
+- Enables the use of `--dangerously-skip-permissions` flag by default
+
+This configuration allows the Claude CLI to run smoothly in a containerized environment without requiring interactive setup steps. The `--dangerously-skip-permissions` flag is necessary in a container environment since the permissions system is designed for local machine usage and can be overly restrictive inside a container.
+
 ## Extending
 
 - **Add packages**: Edit `Dockerfile` and rebuild

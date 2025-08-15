@@ -1,24 +1,20 @@
 #!/bin/bash
-# aws-cred-monitor.sh - Monitors the AWS credential files for changes using inotify
+# aws-cred-monitor.sh - Monitors the AWS credential files for changes using fast polling
 set -e
 
 CRED_FILE="/host/.ai/env/awsvault_url"
 TOKEN_FILE="/host/.ai/env/awsvault_token"
 LOG_FILE="/tmp/aws_cred_monitor.log"
+POLL_INTERVAL=1  # Check every second
 
 # Function to log messages with timestamps
 log_message() {
   echo "[$(date +"%Y-%m-%d %H:%M:%S")] $1" | tee -a "$LOG_FILE"
 }
 
-log_message "AWS credential monitor starting with inotify..."
+log_message "AWS credential monitor starting with fast polling..."
 log_message "Watching files: $CRED_FILE and $TOKEN_FILE"
-
-# Make sure inotify-tools is installed
-if ! command -v inotifywait >/dev/null 2>&1; then
-  log_message "ERROR: inotifywait not found. Please install inotify-tools package."
-  exit 1
-fi
+log_message "Poll interval: $POLL_INTERVAL seconds"
 
 # Initial setup of credentials
 if [[ -f "$CRED_FILE" ]]; then
@@ -28,36 +24,48 @@ else
   log_message "WARNING: Credential file not found at startup"
 fi
 
-# Create the directory path if it doesn't exist (for monitoring parent directory)
-MONITOR_DIR="/host/.ai/env"
-if [[ ! -d "$MONITOR_DIR" ]]; then
-  log_message "Creating directory path for monitoring: $MONITOR_DIR"
-  mkdir -p "$MONITOR_DIR"
-fi
-
 # Function to run when files change
 handle_change() {
   local file=$1
-  local event=$2
+  local type=$2
   
-  log_message "Detected $event on $file"
+  log_message "Detected change in $type file: $file"
   log_message "Running credential setup..."
   /usr/local/bin/aws-setup.sh
 }
 
-log_message "Starting inotify monitoring..."
+log_message "Starting polling monitor..."
 
-# Monitor loop using inotifywait
+# Initialize last modified times
+LAST_URL_MTIME=""
+LAST_TOKEN_MTIME=""
+
+# Monitor loop
 while true; do
-  # Monitor the directory for create, modify, moved_to events
-  # Will trigger on file creation, modification, or being moved into the directory
-  inotifywait -q -e create,modify,moved_to "$MONITOR_DIR" 2>/dev/null | while read -r directory event filename; do
-    # Only act on our target files
-    if [[ "$filename" == "awsvault_url" || "$filename" == "awsvault_token" ]]; then
-      handle_change "$directory$filename" "$event"
+  # Check URL file changes
+  if [[ -f "$CRED_FILE" ]]; then
+    # Get file modification time
+    CURRENT_URL_MTIME=$(stat -c %Y "$CRED_FILE" 2>/dev/null || stat -f %m "$CRED_FILE" 2>/dev/null)
+    
+    if [[ -n "$LAST_URL_MTIME" && "$CURRENT_URL_MTIME" != "$LAST_URL_MTIME" ]]; then
+      handle_change "$CRED_FILE" "URL"
     fi
-  done
+    
+    LAST_URL_MTIME="$CURRENT_URL_MTIME"
+  fi
   
-  # Small delay to prevent high CPU usage in case of issues with inotifywait
-  sleep 1
+  # Check token file changes
+  if [[ -f "$TOKEN_FILE" ]]; then
+    # Get file modification time
+    CURRENT_TOKEN_MTIME=$(stat -c %Y "$TOKEN_FILE" 2>/dev/null || stat -f %m "$TOKEN_FILE" 2>/dev/null)
+    
+    if [[ -n "$LAST_TOKEN_MTIME" && "$CURRENT_TOKEN_MTIME" != "$LAST_TOKEN_MTIME" ]]; then
+      handle_change "$TOKEN_FILE" "token"
+    fi
+    
+    LAST_TOKEN_MTIME="$CURRENT_TOKEN_MTIME"
+  fi
+  
+  # Sleep for poll interval
+  sleep $POLL_INTERVAL
 done

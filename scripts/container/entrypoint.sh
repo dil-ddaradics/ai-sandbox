@@ -16,6 +16,9 @@ echo "Using fixed credential URL: $AWS_CONTAINER_CREDENTIALS_FULL_URI"
 if [[ -f "/host/.ai/env/awsvault_url" ]]; then
   # Run the setup script - now it only manages socat proxy and token
   /usr/local/bin/aws-setup.sh
+  
+  # Make sure credential files are readable by claude-user
+  chmod 644 /etc/profile.d/aws-credentials.sh 2>/dev/null || true
 else
   echo "WARNING: AWS credential file not found at /host/.ai/env/awsvault_url"
 fi
@@ -28,8 +31,8 @@ cat > /root/.bashrc << 'EOF'
 # Source AWS credentials file (will be created by aws-setup.sh)
 [[ -f /etc/profile.d/aws-credentials.sh ]] && source /etc/profile.d/aws-credentials.sh
 
-# Claude CLI alias with permissions bypass
-alias claudy="claude --dangerously-skip-permissions"
+# Claude CLI alias with permissions bypass using gosu
+alias claudy="gosu claude-user claude --dangerously-skip-permissions"
 
 # AWS connectivity check function
 aws_check() {
