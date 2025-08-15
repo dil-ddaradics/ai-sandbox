@@ -6,7 +6,23 @@ _need git
 
 # Get repository root path (works in both main repo and worktrees)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-REPO_NAME="$(basename "$REPO_ROOT")"
+
+# Get original repository name, even when in a worktree
+COMMON_GIT_DIR="$(git rev-parse --git-common-dir)"
+
+# Fix repository name detection for both main repo and worktrees
+if [[ "$COMMON_GIT_DIR" == ".git" ]]; then
+  # We're in the main repo, use REPO_ROOT directly
+  REPO_NAME="$(basename "$REPO_ROOT")"
+else
+  # We're in a worktree, follow the symlink
+  MAIN_REPO_PATH="$(dirname "$COMMON_GIT_DIR")"
+  # Get the actual repo name, not "."
+  REPO_NAME="$(basename "$(realpath "$MAIN_REPO_PATH")")"
+fi
+
+# For logging
+_green "Using repository name: $REPO_NAME from git common dir: $COMMON_GIT_DIR"
 
 # Parse arguments
 YES_FLAG=false
