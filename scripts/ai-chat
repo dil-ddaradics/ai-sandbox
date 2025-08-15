@@ -2,6 +2,9 @@
 set -euo pipefail
 source "$(dirname "$0")/_common.sh"
 
+# Default to claude if no argument is provided
+IDE_TYPE="${1:-claude}"
+
 CTR_FILE="$(pwd)/.ai-container"
 [[ ! -f "$CTR_FILE" ]] && _die "Run ai-up first."
 CTR="$(cat "$CTR_FILE")"
@@ -11,7 +14,7 @@ if ! docker ps --format "{{.Names}}" | grep -q "^$CTR$"; then
   _die "Container $CTR is not running. Start it with ai-up first."
 fi
 
-# Check AWS connectivity in container before launching Claude
+# Check AWS connectivity in container before launching any IDE
 _green "Checking AWS credential connectivity..."
 if ! docker exec "$CTR" /usr/local/bin/aws-connectivity-check.sh; then
   _red "AWS credential check failed. Please restart the credential server with:"
@@ -19,6 +22,62 @@ if ! docker exec "$CTR" /usr/local/bin/aws-connectivity-check.sh; then
   exit 1
 fi
 
-# Launch Claude with dangerously-skip-permissions
-_green "Launching Claude Code with permissions bypass..."
-docker exec -it "$CTR" bash -c "cd /workspace && claudy"
+# Function to connect to container with VS Code or Cursor
+connect_container_with_ide() {
+  local editor_cmd="$1"
+  
+  # Check if Dev Containers extension is installed
+  if ! $editor_cmd --list-extensions | grep -qi 'remote-containers'; then
+    _red "Dev Containers extension is not installed in $editor_cmd"
+    _red "Please install it from the Extensions marketplace"
+    exit 1
+  else
+    _green "✅ Dev Containers extension is installed"
+  fi
+  
+  # Extract clean container name (without leading slash if present)
+  CLEAN_CTR_NAME=$(docker inspect --format '{{.Name}}' "$CTR" 2>/dev/null | sed 's#^/##')
+  [ -n "$CLEAN_CTR_NAME" ] || { _die "No such container: $CTR"; }
+  
+  # Get Docker context
+  CTX=$(docker context show 2>/dev/null || echo default)
+  
+  # Create payload based on context
+  if [ "$CTX" = default ]; then
+    PAYLOAD=$(printf '{"containerName":"%s"}' "$CLEAN_CTR_NAME")
+  else
+    PAYLOAD=$(printf '{"containerName":"%s","settings":{"context":"%s"}}' "$CLEAN_CTR_NAME" "$CTX")
+  fi
+  
+  # Convert payload to hex
+  HEX=$(printf "%s" "$PAYLOAD" | od -An -tx1 | tr -d ' \n')
+  
+  # Launch IDE with the container
+  "$editor_cmd" --folder-uri "vscode-remote://attached-container+${HEX}/workspace" --new-window
+}
+
+case "$IDE_TYPE" in
+  cursor)
+    _green "Launching Cursor IDE..."
+    # Use cursor if available, otherwise fall back to code
+    CMD=$(command -v cursor >/dev/null 2>&1 && echo cursor || echo code)
+    connect_container_with_ide "$CMD"
+    ;;
+    
+  code)
+    _green "Launching VS Code IDE..."
+    # Only use code, no fallback
+    if ! command -v code >/dev/null 2>&1; then
+      _red "VS Code command-line tool not found"
+      _red "Please install VS Code and ensure 'code' is in your PATH"
+      exit 1
+    fi
+    connect_container_with_ide "code"
+    ;;
+    
+  claude|*)
+    # Launch Claude (existing behavior)
+    _green "Launching Claude Code with permissions bypass..."
+    docker exec -it "$CTR" bash -c "cd /workspace && claudy"
+    ;;
+esac
