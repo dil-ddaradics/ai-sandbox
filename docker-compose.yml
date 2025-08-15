@@ -11,8 +11,7 @@ services:
       # Legacy path, no longer needed
     # - ${HOME}/.cc:/host/.cc:ro  # For backward compatibility
     environment:
-      - AWS_CONTAINER_CREDENTIALS_FULL_URI=${IMDS_URL}
-      - AWS_CONTAINER_AUTHORIZATION_TOKEN=${AWS_CONTAINER_AUTHORIZATION_TOKEN:-}
+      - AWS_CONTAINER_CREDENTIALS_FULL_URI=http://localhost:55491/
       - CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}
       - AWS_REGION=${AWS_REGION}
     extra_hosts:

@@ -8,80 +8,27 @@ if ! grep -q "169.254.170.2.*host.docker.internal" /etc/hosts; then
   echo "Added host.docker.internal mapping to /etc/hosts"
 fi
 
-# Set up socat proxy for AWS credential server
-# Read host aws-vault port from the mounted file
+# Set up AWS credential proxy using the consolidated setup script
 echo "Setting up AWS credential proxy..."
-CRED_FILE="/host/.ai/env/awsvault_url"
-# Check for legacy file location
-if [[ ! -f "$CRED_FILE" && -f "/host/.cc/env/awsvault_url" ]]; then
-  CRED_FILE="/host/.cc/env/awsvault_url"
-  echo "Using legacy credential file location: $CRED_FILE"
-fi
+# Ensure fixed credential URL is set (should already be set from Dockerfile)
+echo "Using fixed credential URL: $AWS_CONTAINER_CREDENTIALS_FULL_URI"
 
-if [[ -f "$CRED_FILE" ]]; then
-  PORT=$(sed -n 's#.*:\([0-9][0-9]*\).*#\1#p' "$CRED_FILE")
-  : "${PORT:=54491}"
-  
-  # Choose a container-side proxy port
-  : "${PROXY_PORT:=55491}"
-  
-  echo "Detected credential server port: $PORT, using proxy port: $PROXY_PORT"
-  
-  # Forward container loopback -> host loopback via host.docker.internal
-  socat TCP-LISTEN:${PROXY_PORT},bind=127.0.0.1,fork,reuseaddr TCP:host.docker.internal:${PORT} &
-  SOCAT_PID=$!
-  echo "Started socat proxy with PID $SOCAT_PID"
-  
-  # Point AWS CLI/SDK to loopback (use localhost to satisfy strict host checks)
-  export AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:${PROXY_PORT}/"
-  
-  # Read the authorization token
-  AUTH_TOKEN_FILE="/host/.ai/env/awsvault_token"
-  # Check for legacy token file
-  if [[ ! -f "$AUTH_TOKEN_FILE" && -f "/host/.cc/env/awsvault_token" ]]; then
-    AUTH_TOKEN_FILE="/host/.cc/env/awsvault_token"
-    echo "Using legacy token file location: $AUTH_TOKEN_FILE"
-  fi
-  
-  if [[ -f "$AUTH_TOKEN_FILE" ]]; then
-    export AWS_CONTAINER_AUTHORIZATION_TOKEN=$(cat "$AUTH_TOKEN_FILE")
-    echo "Read authorization token from $AUTH_TOKEN_FILE"
-  fi
-  
-  # Override any environment variables that might have been set
-  echo "export AWS_CONTAINER_CREDENTIALS_FULL_URI=\"http://localhost:${PROXY_PORT}/\"" > /etc/profile.d/aws-credentials.sh
-  if [[ -n "$AWS_CONTAINER_AUTHORIZATION_TOKEN" ]]; then
-    echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=\"$AWS_CONTAINER_AUTHORIZATION_TOKEN\"" >> /etc/profile.d/aws-credentials.sh
-  fi
-  chmod +x /etc/profile.d/aws-credentials.sh
-  
-  # Smoke test
-  echo "Testing AWS credential proxy..."
-  if [[ -n "$AWS_CONTAINER_AUTHORIZATION_TOKEN" ]]; then
-    if curl -s -H "Authorization: $AWS_CONTAINER_AUTHORIZATION_TOKEN" "http://localhost:${PROXY_PORT}/" | grep -q "AccessKeyId"; then
-      echo "AWS credential proxy is working properly with token!"
-    else
-      echo "WARNING: AWS credential proxy test failed with token. Trying without token..."
-      if curl -s "http://localhost:${PROXY_PORT}/" | grep -q "AccessKeyId"; then
-        echo "AWS credential proxy is working without token!"
-      else
-        echo "WARNING: AWS credential proxy test failed. AWS operations may not work."
-      fi
-    fi
-  else
-    if curl -s "http://localhost:${PROXY_PORT}/" | grep -q "AccessKeyId"; then
-      echo "AWS credential proxy is working without token!"
-    else
-      echo "WARNING: AWS credential proxy test failed. AWS operations may not work."
-    fi
-  fi
+if [[ -f "/host/.ai/env/awsvault_url" ]]; then
+  # Run the setup script - now it only manages socat proxy and token
+  /usr/local/bin/aws-setup.sh
 else
-  echo "WARNING: AWS credential file not found at $CRED_FILE"
+  echo "WARNING: AWS credential file not found at /host/.ai/env/awsvault_url"
 fi
 
-# Set up bash profile to source credentials and create claudy alias
+# Set up bash profile to create claudy alias and add AWS connectivity check
 cat > /root/.bashrc << 'EOF'
-source /usr/local/bin/aws-cred-refresh.sh
+# Always run aws-setup.sh to ensure credentials are refreshed
+/usr/local/bin/aws-setup.sh >/dev/null 2>&1 || echo "Failed to refresh AWS credentials"
+
+# Source AWS credentials file (will be created by aws-setup.sh)
+[[ -f /etc/profile.d/aws-credentials.sh ]] && source /etc/profile.d/aws-credentials.sh
+
+# Claude CLI alias with permissions bypass
 alias claudy="claude --dangerously-skip-permissions"
 
 # AWS connectivity check function
@@ -103,9 +50,6 @@ aws_check() {
 # Run AWS check when starting an interactive shell
 aws_check
 EOF
-
-# Initial load of AWS credentials
-source /usr/local/bin/aws-cred-refresh.sh
 
 # Start credential monitor in background
 /usr/local/bin/aws-cred-monitor.sh &

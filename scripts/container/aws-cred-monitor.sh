@@ -1,50 +1,63 @@
 #!/bin/bash
-# aws-cred-monitor.sh - Monitors the AWS credential file for changes
+# aws-cred-monitor.sh - Monitors the AWS credential files for changes using inotify
 set -e
 
 CRED_FILE="/host/.ai/env/awsvault_url"
+TOKEN_FILE="/host/.ai/env/awsvault_token"
 LOG_FILE="/tmp/aws_cred_monitor.log"
-CHECK_INTERVAL=30  # seconds
 
 # Function to log messages with timestamps
 log_message() {
   echo "[$(date +"%Y-%m-%d %H:%M:%S")] $1" | tee -a "$LOG_FILE"
 }
 
-log_message "AWS credential monitor starting..."
-log_message "Watching file: $CRED_FILE"
-log_message "Check interval: $CHECK_INTERVAL seconds"
+log_message "AWS credential monitor starting with inotify..."
+log_message "Watching files: $CRED_FILE and $TOKEN_FILE"
 
-# Check for legacy file location
-# Legacy path, no longer needed
-# if [[ ! -f "$CRED_FILE" && -f "/host/.cc/env/awsvault_url" ]]; then
-#   CRED_FILE="/host/.cc/env/awsvault_url"
-#   log_message "Using legacy credential file location: $CRED_FILE"
-# fi
+# Make sure inotify-tools is installed
+if ! command -v inotifywait >/dev/null 2>&1; then
+  log_message "ERROR: inotifywait not found. Please install inotify-tools package."
+  exit 1
+fi
 
-# Initial load of credentials
+# Initial setup of credentials
 if [[ -f "$CRED_FILE" ]]; then
-  source /usr/local/bin/aws-cred-refresh.sh
-  log_message "Initial credentials loaded"
+  /usr/local/bin/aws-setup.sh
+  log_message "Initial credentials setup completed"
 else
   log_message "WARNING: Credential file not found at startup"
 fi
 
-# Monitor loop
-while true; do
-  if [[ -f "$CRED_FILE" ]]; then
-    # Get file modification time
-    CURRENT_MTIME=$(stat -c %Y "$CRED_FILE" 2>/dev/null || stat -f %m "$CRED_FILE" 2>/dev/null)
-    
-    if [[ -n "$LAST_MTIME" && "$CURRENT_MTIME" != "$LAST_MTIME" ]]; then
-      log_message "Credential file changed, refreshing..."
-      source /usr/local/bin/aws-cred-refresh.sh
-    fi
-    
-    LAST_MTIME="$CURRENT_MTIME"
-  else
-    log_message "WARNING: Credential file not found"
-  fi
+# Create the directory path if it doesn't exist (for monitoring parent directory)
+MONITOR_DIR="/host/.ai/env"
+if [[ ! -d "$MONITOR_DIR" ]]; then
+  log_message "Creating directory path for monitoring: $MONITOR_DIR"
+  mkdir -p "$MONITOR_DIR"
+fi
+
+# Function to run when files change
+handle_change() {
+  local file=$1
+  local event=$2
   
-  sleep $CHECK_INTERVAL
+  log_message "Detected $event on $file"
+  log_message "Running credential setup..."
+  /usr/local/bin/aws-setup.sh
+}
+
+log_message "Starting inotify monitoring..."
+
+# Monitor loop using inotifywait
+while true; do
+  # Monitor the directory for create, modify, moved_to events
+  # Will trigger on file creation, modification, or being moved into the directory
+  inotifywait -q -e create,modify,moved_to "$MONITOR_DIR" 2>/dev/null | while read -r directory event filename; do
+    # Only act on our target files
+    if [[ "$filename" == "awsvault_url" || "$filename" == "awsvault_token" ]]; then
+      handle_change "$directory$filename" "$event"
+    fi
+  done
+  
+  # Small delay to prevent high CPU usage in case of issues with inotifywait
+  sleep 1
 done

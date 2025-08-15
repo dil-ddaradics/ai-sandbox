@@ -23,31 +23,80 @@ success_message() {
 }
 
 # Make sure credentials are refreshed
-source /usr/local/bin/aws-cred-refresh.sh
+/usr/local/bin/aws-setup.sh
 
-# Check if AWS_CONTAINER_CREDENTIALS_FULL_URI is set
-if [[ -z "${AWS_CONTAINER_CREDENTIALS_FULL_URI:-}" ]]; then
-  error_message "AWS credential URL not found"
-  echo "The AWS credential URL environment variable is not set."
-  echo "Please restart the AWS credential server on your host machine:"
-  echo "  ai-awsvault <your-aws-profile>"
-  exit 1
+# Use localhost URL for testing as that's where socat is listening
+LOCAL_CRED_URL="http://localhost:55491/"
+
+# Check if socat proxy is running
+if ! pgrep -f "socat.*:55491" > /dev/null; then
+  error_message "AWS credential proxy not running"
+  echo "The AWS credential proxy is not running. Trying to restart it."
+  /usr/local/bin/aws-setup.sh
+  sleep 1
+  
+  # Check again after restart attempt
+  if ! pgrep -f "socat.*:55491" > /dev/null; then
+    error_message "Failed to start AWS credential proxy"
+    echo "Please restart the AWS credential server on your host machine:"
+    echo "  ai-awsvault <your-aws-profile>"
+    exit 1
+  fi
+fi
+
+# Check if the token file exists and read token
+TOKEN_FILE="/host/.ai/env/awsvault_token"
+if [[ -f "$TOKEN_FILE" ]]; then
+  export AWS_CONTAINER_AUTHORIZATION_TOKEN=$(cat "$TOKEN_FILE")
+  log_message "Read authorization token from file (length: ${#AWS_CONTAINER_AUTHORIZATION_TOKEN})"
 fi
 
 # Test 1: Check if credential server is reachable
-log_message "Testing credential server connectivity..."
-if ! curl -s -f -m 5 -o /dev/null "${AWS_CONTAINER_CREDENTIALS_FULL_URI}"; then
-  error_message "Cannot connect to AWS credential server"
-  echo "The AWS credential server at ${AWS_CONTAINER_CREDENTIALS_FULL_URI} is unreachable."
-  echo "This often happens after your machine wakes from sleep or hibernation."
-  echo "Please restart the AWS credential server on your host machine:"
-  echo "  ai-awsvault <your-aws-profile>"
-  exit 2
+log_message "Testing credential server connectivity to ${LOCAL_CRED_URL}..."
+
+# Read token directly from file
+TOKEN_FILE="/host/.ai/env/awsvault_token"
+AUTH_TOKEN=""
+if [[ -f "$TOKEN_FILE" ]]; then
+  AUTH_TOKEN=$(cat "$TOKEN_FILE")
+  log_message "Read authorization token from file (length: ${#AUTH_TOKEN})"
+fi
+
+# First check with token if available
+if [[ -n "$AUTH_TOKEN" ]]; then
+  log_message "Using authorization token for connection test"
+  if ! curl -s -f -m 5 -o /dev/null -H "Authorization: $AUTH_TOKEN" "${LOCAL_CRED_URL}"; then
+    log_message "Connection test with token failed, trying without token"
+    if ! curl -s -f -m 5 -o /dev/null "${LOCAL_CRED_URL}"; then
+      error_message "Cannot connect to AWS credential server"
+      echo "The AWS credential server at ${LOCAL_CRED_URL} is unreachable."
+      echo "This often happens after your machine wakes from sleep or hibernation."
+      echo "Please restart the AWS credential server on your host machine:"
+      echo "  ai-awsvault <your-aws-profile>"
+      exit 2
+    fi
+  fi
+else
+  # No token available, try without
+  if ! curl -s -f -m 5 -o /dev/null "${LOCAL_CRED_URL}"; then
+    error_message "Cannot connect to AWS credential server"
+    echo "The AWS credential server at ${LOCAL_CRED_URL} is unreachable."
+    echo "This often happens after your machine wakes from sleep or hibernation."
+    echo "Please restart the AWS credential server on your host machine:"
+    echo "  ai-awsvault <your-aws-profile>"
+    exit 2
+  fi
 fi
 
 # Test 2: Check if credentials can be retrieved
 log_message "Testing credential retrieval..."
-CREDS=$(curl -s -f -m 5 "${AWS_CONTAINER_CREDENTIALS_FULL_URI}")
+# Use the same token we read above
+if [[ -n "$AUTH_TOKEN" ]]; then
+  CREDS=$(curl -s -f -m 5 -H "Authorization: $AUTH_TOKEN" "${LOCAL_CRED_URL}")
+else
+  CREDS=$(curl -s -f -m 5 "${LOCAL_CRED_URL}")
+fi
+
 if [[ -z "$CREDS" ]]; then
   error_message "Empty response from credential server"
   echo "The AWS credential server returned an empty response."
