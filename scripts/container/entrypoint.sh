@@ -79,8 +79,30 @@ else
   echo "WARNING: AWS credential file not found at $CRED_FILE"
 fi
 
-# Set up bash profile to source credentials
-echo "source /usr/local/bin/aws-cred-refresh.sh" > /root/.bashrc
+# Set up bash profile to source credentials and create claudy alias
+cat > /root/.bashrc << 'EOF'
+source /usr/local/bin/aws-cred-refresh.sh
+alias claudy="claude --dangerously-skip-permissions"
+
+# AWS connectivity check function
+aws_check() {
+  echo -e "\033[1;34mTesting AWS connectivity...\033[0m"
+  if aws sts get-caller-identity &> /dev/null; then
+    echo -e "\033[1;32m✓ AWS credentials are working properly!\033[0m"
+  else
+    echo -e "\033[1;31m✗ AWS credential test failed!\033[0m"
+    echo -e "\033[1;33mTroubleshooting steps:\033[0m"
+    echo -e "  1. Check if aws-vault is running on your host machine"
+    echo -e "  2. Restart credential server: ai-awsvault <profile>"
+    echo -e "  3. Restart container: ai-up -y --force"
+    echo -e "  4. Check AWS region setting: echo \$AWS_REGION"
+    echo -e "  5. Verify network connectivity to AWS services"
+  fi
+}
+
+# Run AWS check when starting an interactive shell
+aws_check
+EOF
 
 # Initial load of AWS credentials
 source /usr/local/bin/aws-cred-refresh.sh

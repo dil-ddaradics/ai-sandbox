@@ -30,7 +30,7 @@ if [[ -z "${AWS_CONTAINER_CREDENTIALS_FULL_URI:-}" ]]; then
   error_message "AWS credential URL not found"
   echo "The AWS credential URL environment variable is not set."
   echo "Please restart the AWS credential server on your host machine:"
-  echo "  cc-awsvault <your-aws-profile>"
+  echo "  ai-awsvault <your-aws-profile>"
   exit 1
 fi
 
@@ -41,7 +41,7 @@ if ! curl -s -f -m 5 -o /dev/null "${AWS_CONTAINER_CREDENTIALS_FULL_URI}"; then
   echo "The AWS credential server at ${AWS_CONTAINER_CREDENTIALS_FULL_URI} is unreachable."
   echo "This often happens after your machine wakes from sleep or hibernation."
   echo "Please restart the AWS credential server on your host machine:"
-  echo "  cc-awsvault <your-aws-profile>"
+  echo "  ai-awsvault <your-aws-profile>"
   exit 2
 fi
 
@@ -52,7 +52,7 @@ if [[ -z "$CREDS" ]]; then
   error_message "Empty response from credential server"
   echo "The AWS credential server returned an empty response."
   echo "Please restart the AWS credential server on your host machine:"
-  echo "  cc-awsvault <your-aws-profile>"
+  echo "  ai-awsvault <your-aws-profile>"
   exit 3
 fi
 
@@ -67,7 +67,7 @@ if [[ -z "$ACCESS_KEY" || -z "$SECRET_KEY" || -z "$TOKEN" ]]; then
   echo "The AWS credential server returned credentials in an unexpected format."
   echo "Expected JSON with AccessKeyId, SecretAccessKey, and Token."
   echo "Please restart the AWS credential server on your host machine:"
-  echo "  cc-awsvault <your-aws-profile>"
+  echo "  ai-awsvault <your-aws-profile>"
   exit 4
 fi
 

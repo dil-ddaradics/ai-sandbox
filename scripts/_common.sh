@@ -18,32 +18,35 @@ ROOT_REPO="$(git -C "$SCRIPT_DIR/../.." rev-parse --show-toplevel 2>/dev/null ||
 # repo‑local env overrides - try new location first, fallback to legacy
 if [[ -f "$ROOT_REPO/.ai/.aienv" ]]; then
   source "$ROOT_REPO/.ai/.aienv"
-elif [[ -f "$ROOT_REPO/.cc/.ccenv" ]]; then
-  source "$ROOT_REPO/.cc/.ccenv"
+# Legacy path, no longer needed
+# elif [[ -f "$ROOT_REPO/.cc/.ccenv" ]]; then
+#   source "$ROOT_REPO/.cc/.ccenv"
 fi
 
 # user‑global overrides - try new location first, fallback to legacy
 if [[ -f "$HOME/.aienv" ]]; then
   source "$HOME/.aienv"
-elif [[ -f "$HOME/.ccenv" ]]; then
-  source "$HOME/.ccenv"
+# Legacy path, no longer needed
+# elif [[ -f "$HOME/.ccenv" ]]; then
+#   source "$HOME/.ccenv"
 fi
 
 # defaults
 USE_DIRENV="${USE_DIRENV:-1}"
 WT_ROOT="${WT_ROOT:-$HOME/worktrees}"
 CLAUDE_CODE_USE_BEDROCK="${CLAUDE_CODE_USE_BEDROCK:-1}"
-ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-us.anthropic.claude-3-sonnet-20250219-v1:0}"
+AWS_REGION="${AWS_REGION:-us-west-2}"
 CPU_LIMIT="${CPU_LIMIT:-}"
 MEM_LIMIT="${MEM_LIMIT:-}"
 
 # Auto-load IMDS URL if not already in env
 if [[ -z "${IMDS_URL:-}" ]]; then
-  # Try new location first, fallback to legacy
+  # Try new location first, fallback to legacy/
   if [[ -f "$HOME/.ai/awsvault_url" ]]; then
     IMDS_URL=$(< "$HOME/.ai/awsvault_url")
-  elif [[ -f "$HOME/.cc/awsvault_url" ]]; then
-    IMDS_URL=$(< "$HOME/.cc/awsvault_url")
+  # Legacy path, no longer needed
+  # elif [[ -f "$HOME/.cc/awsvault_url" ]]; then
+  #   IMDS_URL=$(< "$HOME/.cc/awsvault_url")
   fi
 fi
 

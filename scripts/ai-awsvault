@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -h|--help)
-      echo "Usage: cc-awsvault [OPTIONS] <aws-profile>"
+      echo "Usage: ai-awsvault [OPTIONS] <aws-profile>"
       echo
       echo "Options:"
       echo "  --non-interactive   Run in non-interactive mode (use with automation)"
@@ -69,11 +69,11 @@ if [[ -z "$PROFILE" ]]; then
   PROFILE="${AWS_PROFILE:-}"
 fi
 
-[[ -z "$PROFILE" ]] && _die "Usage: cc-awsvault <aws-profile> (or set AWS_PROFILE)"
+[[ -z "$PROFILE" ]] && _die "Usage: ai-awsvault <aws-profile> (or set AWS_PROFILE)"
 
 # Set up logging
-LOG_DIR="$HOME/.cc/logs"
-ENV_DIR="$HOME/.cc/env"
+LOG_DIR="$HOME/.ai/logs"
+ENV_DIR="$HOME/.ai/env"
 mkdir -p "$LOG_DIR" "$ENV_DIR"
 LOG_FILE="$LOG_DIR/awsvault.log"
 
@@ -90,7 +90,7 @@ log() {
   esac
 }
 
-log "INFO" "Starting cc-awsvault with profile $PROFILE"
+log "INFO" "Starting ai-awsvault with profile $PROFILE"
 
 # Use existing log function
 
@@ -119,7 +119,7 @@ if lsof -i | grep -q aws-vault; then
           DOCKER_URL="$IMDS_URL"
         fi
         
-        # still echo so caller can `eval $(cc-awsvault …)` if desired
+        # still echo so caller can `eval $(ai-awsvault …)` if desired
         echo "export IMDS_URL=$DOCKER_URL"
         echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=$AUTH_TOKEN"
         exit 0
@@ -137,7 +137,7 @@ if lsof -i | grep -q aws-vault; then
           DOCKER_URL="$IMDS_URL"
         fi
         
-        # still echo so caller can `eval $(cc-awsvault …)` if desired
+        # still echo so caller can `eval $(ai-awsvault …)` if desired
         echo "export IMDS_URL=$DOCKER_URL"
         exit 0
       fi
@@ -182,8 +182,8 @@ if [[ -s "$URL_FILE" ]]; then
   fi
   
   # Create log and environment directories
-  LOG_DIR="$HOME/.cc/logs"
-  ENV_DIR="$HOME/.cc/env"
+  LOG_DIR="$HOME/.ai/logs"
+  ENV_DIR="$HOME/.ai/env"
   mkdir -p "$LOG_DIR" "$ENV_DIR"
   LOG_FILE="$LOG_DIR/awsvault.log"
   
@@ -211,7 +211,7 @@ if [[ -s "$URL_FILE" ]]; then
   _green "Started aws-vault ECS server with PID $SERVER_PID"
   
   # Save PID for management
-  echo "$SERVER_PID" > "$HOME/.cc/awsvault_pid"
+  echo "$SERVER_PID" > "$HOME/.ai/awsvault_pid"
   
   # Wait for the credential server to start
   _green "Waiting for credential server to start and write URL..."
@@ -320,7 +320,7 @@ if [[ -s "$ENV_DIR/awsvault_url" ]]; then
   # No longer saving URL in the old location - only using env directory
   # Token is already saved in the env directory
   
-  # still echo so caller can `eval $(cc-awsvault …)` if desired
+  # still echo so caller can `eval $(ai-awsvault …)` if desired
   echo "export IMDS_URL=$DOCKER_URL"
   if [[ -n "$AUTH_TOKEN" ]]; then
     echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=$AUTH_TOKEN"

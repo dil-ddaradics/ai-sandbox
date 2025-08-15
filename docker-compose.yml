@@ -3,17 +3,18 @@ services:
     build:
       context: ..
       dockerfile: .ai/Dockerfile
-    container_name: ${AI_CONTAINER_NAME:-cc_container_name}
+    container_name: ${AI_CONTAINER_NAME:-ai_container_name}
     working_dir: /workspace
     volumes:
       - ${WORKTREE}:/workspace
       - ${HOME}/.ai:/host/.ai:ro
-      - ${HOME}/.cc:/host/.cc:ro  # For backward compatibility
+      # Legacy path, no longer needed
+    # - ${HOME}/.cc:/host/.cc:ro  # For backward compatibility
     environment:
       - AWS_CONTAINER_CREDENTIALS_FULL_URI=${IMDS_URL}
       - AWS_CONTAINER_AUTHORIZATION_TOKEN=${AWS_CONTAINER_AUTHORIZATION_TOKEN:-}
       - CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
+      - AWS_REGION=${AWS_REGION}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     deploy:

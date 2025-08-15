@@ -16,12 +16,12 @@ Key goals agreed during design discussion:
 | Claude backend | Amazon **Bedrock** via `aws‑vault --server` running on the host |
 | Container privilege | **root** (inside container) |
 | Exec method | `docker exec -it` (no sshd) |
-| Naming convention | `cc-<branch>` |
+| Naming convention | `ai-<branch>` |
 | Extensibility | `docker‑compose.yml` for DB sidecars etc. |
-| Scripts | `cc-up`, `cc-chat`, `cc-stop`, `cc-clean`, `cc-awsvault` |
-| Clean‑up | `cc-clean` removes work‑tree & container |
+| Scripts | `ai-up`, `ai-chat`, `ai-stop`, `ai-clean`, `ai-awsvault` |
+| Clean‑up | `ai-clean` removes work‑tree & container |
 | Install/Removal | `install.sh`, `uninstall.sh` copy / delete toolkit in any repo |
-| Config | `.ccenv` file (env‑vars) – everything overridable |
+| Config | `.aienv` file (env‑vars) – everything overridable |
 
 ---
 
@@ -33,13 +33,13 @@ ai-sandbox/
 ├─ docker-compose.yml
 ├─ scripts/
 │  ├─ _common.sh
-│  ├─ cc-awsvault
-│  ├─ cc-up
-│  ├─ cc-chat
-│  ├─ cc-stop
-│  ├─ cc-clean
+│  ├─ ai-awsvault
+│  ├─ ai-up
+│  ├─ ai-chat
+│  ├─ ai-stop
+│  ├─ ai-clean
 │  └─ templates/
-│     └─ .ccenv.example
+│     └─ .aienv.example
 ├─ install.sh
 ├─ uninstall.sh
 └─ README.md
@@ -63,12 +63,12 @@ ai-sandbox/
 
 ## 3 · Configuration file
 
-`scripts/templates/.ccenv.example` – copy to `<repo>/.cc/.ccenv` to override defaults.
+`scripts/templates/.aienv.example` – copy to `<repo>/.ai/.aienv` to override defaults.
 
 ```dotenv
 # Claude / Bedrock
 CLAUDE_CODE_USE_BEDROCK=1
-ANTHROPIC_MODEL=us.anthropic.claude-3-sonnet-20250219-v1:0
+AWS_REGION=us-west-2
 
 # Work‑tree parking lot
 WT_ROOT=$HOME/worktrees
@@ -108,19 +108,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_REPO="$(git -C "$SCRIPT_DIR/../.." rev-parse --show-toplevel 2>/dev/null || true)"
 
 # repo‑local env overrides
-[[ -f "$ROOT_REPO/.cc/.ccenv" ]] && source "$ROOT_REPO/.cc/.ccenv"
+[[ -f "$ROOT_REPO/.ai/.aienv" ]] && source "$ROOT_REPO/.ai/.aienv"
 # user‑global overrides
-[[ -f "$HOME/.ccenv" ]] && source "$HOME/.ccenv"
+[[ -f "$HOME/.aienv" ]] && source "$HOME/.aienv"
 
 # defaults
 WT_ROOT="${{WT_ROOT:-$HOME/worktrees}}"
 CLAUDE_CODE_USE_BEDROCK="${{CLAUDE_CODE_USE_BEDROCK:-1}}"
-ANTHROPIC_MODEL="${{ANTHROPIC_MODEL:-us.anthropic.claude-3-sonnet-20250219-v1:0}}"
+AWS_REGION="${{AWS_REGION:-us-west-2}}"
 CPU_LIMIT="${{CPU_LIMIT:-}}"
 MEM_LIMIT="${{MEM_LIMIT:-}}"
 ```
 
-### 4.2  `scripts/cc-awsvault`
+### 4.2  `scripts/ai-awsvault`
 
 ```bash
 #!/usr/bin/env bash
@@ -148,7 +148,7 @@ _green "IMDS endpoint: $URL"
 echo "export IMDS_URL=$URL"
 ```
 
-### 4.3  `scripts/cc-up`
+### 4.3  `scripts/ai-up`
 
 ```bash
 #!/usr/bin/env bash
@@ -161,7 +161,7 @@ REPO_NAME="$(basename "$(git rev-parse --show-toplevel)")"
 BRANCH="$(git symbolic-ref --quiet --short HEAD)"
 [[ -z "$BRANCH" ]] && _die "Not on a branch; git worktree requires a branch"
 WORKTREE_DIR="$WT_ROOT/$REPO_NAME/$BRANCH"
-CTR="cc-${{BRANCH//\//-}}"
+CTR="ai-${{BRANCH//\//-}}"
 
 # ensure worktree exists
 if [[ ! -d "$WORKTREE_DIR" ]]; then
@@ -170,14 +170,14 @@ fi
 
 # compose env file
 ENV_FILE="$WORKTREE_DIR/.env.compose"
-IMDS_URL="${{IMDS_URL:?IMDS_URL missing. Run cc-awsvault <profile> first.}}"
+IMDS_URL="${{IMDS_URL:?IMDS_URL missing. Run ai-awsvault <profile> first.}}"
 
 cat >"$ENV_FILE" <<EOF
 WORKTREE=$WORKTREE_DIR
 IMDS_URL=$IMDS_URL
 CC_CONTAINER_NAME=$CTR
 CLAUDE_CODE_USE_BEDROCK=$CLAUDE_CODE_USE_BEDROCK
-ANTHROPIC_MODEL=$ANTHROPIC_MODEL
+AWS_REGION=$AWS_REGION
 CC_BRANCH=$BRANCH
 CPU_LIMIT=$CPU_LIMIT
 MEM_LIMIT=$MEM_LIMIT
@@ -185,7 +185,7 @@ EOF
 
 docker compose --env-file "$ENV_FILE" up -d dev
 
-echo "$CTR" > "$WORKTREE_DIR/.cc-container"
+echo "$CTR" > "$WORKTREE_DIR/.ai-container"
 _green "✔ Container $CTR running for $BRANCH at $WORKTREE_DIR"
 ```
 
@@ -249,8 +249,7 @@ RUN apk add --no-cache bash curl git nodejs npm python3 py3-pip tini
 
 RUN npm install -g @anthropic-ai/claude-code
 
-ENV CLAUDE_CODE_USE_BEDROCK=1 \
-    ANTHROPIC_MODEL=us.anthropic.claude-3-sonnet-20250219-v1:0
+ENV CLAUDE_CODE_USE_BEDROCK=1
 
 ENTRYPOINT ["/sbin/tini","--"]
 CMD ["bash"]
@@ -271,7 +270,7 @@ services:
     environment:
       - AWS_CONTAINER_CREDENTIALS_FULL_URI=${IMDS_URL}
       - CLAUDE_CODE_USE_BEDROCK=${CLAUDE_CODE_USE_BEDROCK}
-      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL}
+      - AWS_REGION=${AWS_REGION}
     deploy:
       resources:
         limits:

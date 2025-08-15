@@ -29,6 +29,7 @@ USE_DIRENV=1
 NON_INTERACTIVE=0
 FORCE_DOCKER=0
 TARGET=""
+AWS_REGION="us-west-2"
 
 for arg in "$@"; do
   case "$arg" in
@@ -41,6 +42,9 @@ for arg in "$@"; do
     -f|--force)
       FORCE_DOCKER=1
       ;;
+    --region=*)
+      AWS_REGION="${arg#*=}"
+      ;;
     --help)
       echo "Usage: install.sh [OPTIONS] /path/to/repo"
       echo
@@ -48,6 +52,7 @@ for arg in "$@"; do
       echo "  --no-direnv         Don't use direnv for PATH integration"
       echo "  --non-interactive   Run in non-interactive mode (no prompts)"
       echo "  -f, --force         Force overwrite of Dockerfile and docker-compose.yml"
+      echo "  --region=REGION     Set AWS region (default: us-west-2)"
       echo "  --help              Show this help message"
       echo
       exit 0
@@ -74,7 +79,21 @@ cp -R "$SCRIPT_DIR/scripts"/* "$TARGET/.ai/scripts/"
 
 # Make sure templates directory exists
 mkdir -p "$TARGET/.ai/templates"
-cp "$SCRIPT_DIR/scripts/templates/.ccenv.example" "$TARGET/.ai/.aienv.example"
+cp "$SCRIPT_DIR/scripts/templates/.aienv.example" "$TARGET/.ai/.aienv.example"
+
+# Set the AWS_REGION configuration value
+if [[ -f "$TARGET/.ai/.aienv" ]]; then
+  # Update existing file if it exists
+  if grep -q "^AWS_REGION=" "$TARGET/.ai/.aienv"; then
+    sed -i.bak "s/^AWS_REGION=.*/AWS_REGION=$AWS_REGION/" "$TARGET/.ai/.aienv"
+    rm -f "$TARGET/.ai/.aienv.bak"
+  else
+    echo "AWS_REGION=$AWS_REGION" >> "$TARGET/.ai/.aienv"
+  fi
+else
+  # Create new file if it doesn't exist
+  echo "AWS_REGION=$AWS_REGION" >> "$TARGET/.ai/.aienv"
+fi
 
 # Copy Docker-related files only if FORCE_DOCKER flag is set or files don't exist
 if [[ "$FORCE_DOCKER" -eq 1 ]] || [[ ! -f "$TARGET/.ai/docker-compose.yml" ]]; then

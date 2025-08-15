@@ -1,6 +1,6 @@
 # Claude / Bedrock
 CLAUDE_CODE_USE_BEDROCK=1
-ANTHROPIC_MODEL=us.anthropic.claude-3-sonnet-20250219-v1:0
+AWS_REGION=us-west-2
 
 # Direnv integration - set to 0 to disable direnv usage
 USE_DIRENV=1

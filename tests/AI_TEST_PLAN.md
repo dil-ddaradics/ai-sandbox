@@ -88,12 +88,12 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 3. Verify installation success:
    ```bash
-   ls -la sandbox-test/.cc
+   ls -la sandbox-test/.ai
    ```
 
 3. Check that scripts were installed:
    ```bash
-   ls -la sandbox-test/.cc/scripts/
+   ls -la sandbox-test/.ai/scripts/
    ```
 
 ### 2.2 Installation without Direnv
@@ -102,7 +102,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Clean up the previous installation:
    ```bash
-   rm -rf sandbox-test/.cc
+   rm -rf sandbox-test/.ai
    rm -f sandbox-test/.envrc
    ```
 
@@ -119,7 +119,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 4. Verify configuration:
    ```bash
-   cat sandbox-test/.cc/.ccenv | grep USE_DIRENV
+   cat sandbox-test/.ai/.ccenv | grep USE_DIRENV
    ```
 
 ### 2.3 Re-installation Test
@@ -128,7 +128,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Make a change to the example config:
    ```bash
-   echo "TEST_VAR=test_value" >> sandbox-test/.cc/.ccenv
+   echo "TEST_VAR=test_value" >> sandbox-test/.ai/.ccenv
    ```
 
 2. Re-run the installation:
@@ -138,7 +138,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 3. Verify that the installation preserved custom settings:
    ```bash
-   cat sandbox-test/.cc/.ccenv | grep TEST_VAR
+   cat sandbox-test/.ai/.ccenv | grep TEST_VAR
    ```
 
 ### 2.4 Installation Error Handling
@@ -167,8 +167,8 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 1. Start the credential server with the test profile:
    ```bash
    cd sandbox-test
-   export PATH="$PATH:$(pwd)/.cc/scripts"
-   cc-awsvault dil-rc-issuemanager-dev
+   export PATH="$PATH:$(pwd)/.ai/scripts"
+   ai-awsvault dil-rc-issuemanager-dev
    ```
 
 2. Verify the credential server is running:
@@ -178,7 +178,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 3. Check that the URL file was created:
    ```bash
-   cat $HOME/.cc/awsvault_url
+   cat $HOME/.ai/awsvault_url
    ```
 
 ### 3.2 Credential Server Status
@@ -219,7 +219,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 2. Verify that AWS credentials are working:
    ```bash
-   export IMDS_URL=$(cat $HOME/.cc/awsvault_url)
+   export IMDS_URL=$(cat $HOME/.ai/awsvault_url)
    AWS_CONTAINER_CREDENTIALS_FULL_URI=$IMDS_URL aws s3 ls
    ```
 
@@ -234,13 +234,13 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 1. Create a container for the main branch:
    ```bash
    cd sandbox-test
-   cc-up -y
+   ai-up -y
    ```
 
 2. Verify container creation:
    ```bash
-   docker ps | grep cc-
-   cat .cc-container
+   docker ps | grep ai-
+   cat .ai-container
    ```
 
 ### 4.2 Container Creation - Specific Branch
@@ -249,12 +249,12 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Create a container for a specific branch:
    ```bash
-   cc-up -y feature/test-branch
+   ai-up -y feature/test-branch
    ```
 
 2. Verify the container and worktree:
    ```bash
-   docker ps | grep cc-feature-test-branch
+   docker ps | grep ai-feature-test-branch
    ls -la $HOME/worktrees/sandbox-test/feature/test-branch
    ```
 
@@ -264,7 +264,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Check environment variables in the container:
    ```bash
-   CONTAINER=$(cat .cc-container)
+   CONTAINER=$(cat .ai-container)
    docker exec $CONTAINER env | grep -E 'AWS_|CLAUDE_|ANTHROPIC_'
    ```
 
@@ -279,8 +279,8 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Verify AWS credentials work in the container using get-caller-identity:
    ```bash
-   CONTAINER=$(cat .cc-container)
-   IMDS_URL=$(cat $HOME/.cc/awsvault_url)
+   CONTAINER=$(cat .ai-container)
+   IMDS_URL=$(cat $HOME/.ai/awsvault_url)
    docker exec $CONTAINER bash -c "AWS_CONTAINER_CREDENTIALS_FULL_URI=$IMDS_URL aws sts get-caller-identity"
    ```
 
@@ -300,7 +300,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Verify Claude is installed in the container:
    ```bash
-   CONTAINER=$(cat .cc-container)
+   CONTAINER=$(cat .ai-container)
    docker exec $CONTAINER which claude
    ```
 
@@ -310,7 +310,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Test a basic prompt with an explicit timeout:
    ```bash
-   ./ai-sandbox/tests/scripts/cc-prompt --timeout 45 $CONTAINER "Explain what Git worktrees are in one paragraph."
+   ./ai-sandbox/tests/scripts/ai-prompt --timeout 45 $CONTAINER "Explain what Git worktrees are in one paragraph."
    ```
 
 ### 5.3 Claude AWS Access Test
@@ -319,7 +319,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Test Claude's ability to access AWS information with an explicit timeout:
    ```bash
-   ./ai-sandbox/tests/scripts/cc-prompt --timeout 90 $CONTAINER "What AWS account am I currently using? Use the AWS CLI to run 'aws sts get-caller-identity' and explain the output."
+   ./ai-sandbox/tests/scripts/ai-prompt --timeout 90 $CONTAINER "What AWS account am I currently using? Use the AWS CLI to run 'aws sts get-caller-identity' and explain the output."
    ```
 
 ## 6. Error Handling Tests
@@ -332,7 +332,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Test with an invalid AWS profile:
    ```bash
-   cc-awsvault nonexistent-profile 2>&1 || true
+   ai-awsvault nonexistent-profile 2>&1 || true
    ```
 
 2. Wait 2 seconds for error output to complete:
@@ -351,7 +351,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Test container creation without credential server:
    ```bash
-   cc-awsvault-stop
+   ai-awsvault-stop
    mkdir -p test-error
    cd test-error
    git init
@@ -359,8 +359,8 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
    git add README.md
    git commit -m "Initial commit"
    ../ai-sandbox/install.sh --non-interactive .
-   export PATH="$PATH:$(pwd)/.cc/scripts"
-   cc-up -y 2>&1 || true
+   export PATH="$PATH:$(pwd)/.ai/scripts"
+   ai-up -y 2>&1 || true
    ```
 
 2. Check error messages:
@@ -378,15 +378,15 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Check the default configuration:
    ```bash
-   cat sandbox-test/.cc/.ccenv.example
+   cat sandbox-test/.ai/.ccenv.example
    ```
 
 2. Test custom configuration:
    ```bash
    cd sandbox-test
-   echo "CPU_LIMIT=2" > .cc/.ccenv
-   echo "MEM_LIMIT=4g" >> .cc/.ccenv
-   cc-up -y custom-config-test
+   echo "CPU_LIMIT=2" > .ai/.aienv
+   echo "MEM_LIMIT=4g" >> .ai/.aienv
+   ai-up -y custom-config-test
    ```
 
 3. Wait 10 seconds for container to apply resource limits:
@@ -397,7 +397,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 4. Verify resource limits:
    ```bash
-   docker inspect cc-custom-config-test | grep -A10 "HostConfig"
+   docker inspect ai-custom-config-test | grep -A10 "HostConfig"
    ```
 
 ### 7.2 Environment Variable Propagation
@@ -406,8 +406,8 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 1. Set custom environment variables:
    ```bash
-   echo "TEST_ENV_VAR=hello_world" >> .cc/.ccenv
-   cc-up -y env-test
+   echo "TEST_ENV_VAR=hello_world" >> .ai/.aienv
+   ai-up -y env-test
    ```
 
 2. Wait 8 seconds for container environment to initialize:
@@ -418,7 +418,7 @@ When you find issues that require fixes, modify the code in the AI Sandbox repos
 
 3. Verify the variables are passed to the container:
    ```bash
-   docker exec cc-env-test env | grep TEST_ENV_VAR
+   docker exec ai-env-test env | grep TEST_ENV_VAR
    ```
 
 ## 8. Manual Testing Requirements
@@ -431,7 +431,7 @@ The following tests require manual intervention and cannot be fully automated wi
 
 **Status: [ ]**
 
-- Launch and interact with the full Claude interface using `cc-chat`
+- Launch and interact with the full Claude interface using `ai-chat`
 - Test multi-turn conversations and context retention
 - Verify code editing capabilities in interactive mode
 
@@ -510,7 +510,7 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 3. Verify installation
    ```bash
    ls -la .cc
-   cat .cc/.ccenv
+   cat .ai/.aienv
    ```
 
 ### 9.3 AWS Credential Setup
@@ -519,8 +519,8 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 
 1. Start the credential server
    ```bash
-   export PATH="$PATH:$(pwd)/.cc/scripts"
-   cc-awsvault your-aws-profile
+   export PATH="$PATH:$(pwd)/.ai/scripts"
+   ai-awsvault your-aws-profile
    ```
 
 2. Wait 5 seconds for credential server to initialize:
@@ -540,7 +540,7 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 
 1. Create a container for the main branch
    ```bash
-   cc-up
+   ai-up
    ```
 
 2. Wait 10 seconds for container to initialize:
@@ -560,7 +560,7 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 
 1. Launch Claude
    ```bash
-   cc-chat
+   ai-chat
    ```
 
 2. Test basic interactions:
@@ -579,7 +579,7 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 
 2. Create a container for the new branch
    ```bash
-   cc-up
+   ai-up
    ```
 
 3. Wait 10 seconds for container to initialize:
@@ -599,12 +599,12 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 
 1. Stop containers
    ```bash
-   cc-clean
+   ai-clean
    ```
 
 2. Stop credential server
    ```bash
-   cc-awsvault-stop
+   ai-awsvault-stop
    ```
 
 3. Uninstall AI Sandbox
@@ -615,18 +615,18 @@ This comprehensive manual test verifies the complete workflow of the AI Sandbox 
 4. Verify cleanup
    ```bash
    ls -la | grep .cc
-   docker ps | grep cc-
+   docker ps | grep ai-
    ```
 
 ## 10. Helper Scripts Reference
 
 The following helper scripts are available in the `tests/scripts/` directory to assist with AI testing:
 
-### 10.1 cc-prompt
+### 10.1 ai-prompt
 
 A wrapper script for non-interactive Claude commands that capture output:
 ```bash
-cc-prompt [CONTAINER_NAME] "Your prompt here"
+ai-prompt [CONTAINER_NAME] "Your prompt here"
 ```
 
 ### 10.2 aws-cred-validator.sh

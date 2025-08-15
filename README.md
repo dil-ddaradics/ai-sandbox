@@ -73,7 +73,7 @@ You can override default settings by creating a `.ai/.aienv` file in your reposi
 ```bash
 # Claude / Bedrock
 CLAUDE_CODE_USE_BEDROCK=1
-ANTHROPIC_MODEL=us.anthropic.claude-3-sonnet-20250219-v1:0
+AWS_REGION=us-west-2
 
 # Work-tree parking lot
 WT_ROOT=$HOME/worktrees

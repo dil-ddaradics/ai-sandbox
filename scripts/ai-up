@@ -12,6 +12,7 @@ REPO_NAME="$(basename "$REPO_ROOT")"
 YES_FLAG=false
 FORCE_FLAG=false
 TARGET_BRANCH=""
+CUSTOM_REGION=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,13 +24,18 @@ while [[ $# -gt 0 ]]; do
       FORCE_FLAG=true
       shift
       ;;
+    --region=*)
+      CUSTOM_REGION="${1#*=}"
+      shift
+      ;;
     -h|--help)
       echo "Usage: ai-up [OPTIONS] [BRANCH_NAME]"
       echo
       echo "Options:"
-      echo "  -y, --yes    Automatically answer yes to all prompts"
-      echo "  -f, --force  Force rebuild of container even if it exists"
-      echo "  -h, --help   Show this help message"
+      echo "  -y, --yes          Automatically answer yes to all prompts"
+      echo "  -f, --force        Force rebuild of container even if it exists"
+      echo "  --region=REGION    Override default AWS region"
+      echo "  -h, --help         Show this help message"
       echo
       exit 0
       ;;
@@ -160,13 +166,29 @@ fi
 
 # Check if IMDS_URL is available, but don't fail if not - dynamic credential handling will try to load it
 if [[ -z "${IMDS_URL:-}" ]]; then
-  # Try new location first, fallback to legacy
-  if [[ -f "$HOME/.ai/awsvault_url" ]]; then
-    IMDS_URL=$(< "$HOME/.ai/awsvault_url")
-    _green "Using saved IMDS_URL from $HOME/.ai/awsvault_url"
-  elif [[ -f "$HOME/.cc/awsvault_url" ]]; then
-    IMDS_URL=$(< "$HOME/.cc/awsvault_url")
-    _green "Using saved IMDS_URL from $HOME/.cc/awsvault_url (legacy location)"
+  # Try env subdirectory first, then direct path
+  if [[ -f "$HOME/.ai/env/awsvault_url" ]]; then
+    ORIGINAL_URL=$(< "$HOME/.ai/env/awsvault_url")
+    # Convert 127.0.0.1 to host.docker.internal for container access
+    if [[ "$ORIGINAL_URL" == http://127.0.0.1:* ]]; then
+      PORT=$(echo "$ORIGINAL_URL" | grep -oE ':[0-9]+' | tr -d ':')
+      IMDS_URL="http://host.docker.internal:${PORT}"
+      _green "Mapped $ORIGINAL_URL to $IMDS_URL for container access"
+    else
+      IMDS_URL="$ORIGINAL_URL"
+      _green "Using saved IMDS_URL from $HOME/.ai/env/awsvault_url"
+    fi
+  elif [[ -f "$HOME/.ai/awsvault_url" ]]; then
+    ORIGINAL_URL=$(< "$HOME/.ai/awsvault_url")
+    # Convert 127.0.0.1 to host.docker.internal for container access
+    if [[ "$ORIGINAL_URL" == http://127.0.0.1:* ]]; then
+      PORT=$(echo "$ORIGINAL_URL" | grep -oE ':[0-9]+' | tr -d ':')
+      IMDS_URL="http://host.docker.internal:${PORT}"
+      _green "Mapped $ORIGINAL_URL to $IMDS_URL for container access"
+    else
+      IMDS_URL="$ORIGINAL_URL"
+      _green "Using saved IMDS_URL from $HOME/.ai/awsvault_url"
+    fi
   else
     _yellow "Warning: IMDS_URL not found. Container will attempt to load credentials dynamically."
     _yellow "Run ai-awsvault <profile> first for immediate availability."
@@ -177,13 +199,18 @@ fi
 # compose env file
 ENV_FILE="$WORKTREE_DIR/.env.compose"
 
+# Use custom region if specified
+if [[ -n "$CUSTOM_REGION" ]]; then
+  AWS_REGION="$CUSTOM_REGION"
+fi
+
 cat >"$ENV_FILE" <<EOF
 WORKTREE=$WORKTREE_DIR
 HOME=$HOME
 IMDS_URL=$IMDS_URL
 AI_CONTAINER_NAME=$CTR
 CLAUDE_CODE_USE_BEDROCK=$CLAUDE_CODE_USE_BEDROCK
-ANTHROPIC_MODEL=$ANTHROPIC_MODEL
+AWS_REGION=$AWS_REGION
 AI_BRANCH=$TARGET_BRANCH
 CPU_LIMIT=$CPU_LIMIT
 MEM_LIMIT=$MEM_LIMIT

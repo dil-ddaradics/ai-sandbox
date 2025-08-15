@@ -16,10 +16,11 @@ log_message "Watching file: $CRED_FILE"
 log_message "Check interval: $CHECK_INTERVAL seconds"
 
 # Check for legacy file location
-if [[ ! -f "$CRED_FILE" && -f "/host/.cc/env/awsvault_url" ]]; then
-  CRED_FILE="/host/.cc/env/awsvault_url"
-  log_message "Using legacy credential file location: $CRED_FILE"
-fi
+# Legacy path, no longer needed
+# if [[ ! -f "$CRED_FILE" && -f "/host/.cc/env/awsvault_url" ]]; then
+#   CRED_FILE="/host/.cc/env/awsvault_url"
+#   log_message "Using legacy credential file location: $CRED_FILE"
+# fi
 
 # Initial load of credentials
 if [[ -f "$CRED_FILE" ]]; then
