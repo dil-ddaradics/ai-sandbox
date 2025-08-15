@@ -75,8 +75,8 @@ You can override default settings by creating a `.ai/.aienv` file in your reposi
 CLAUDE_CODE_USE_BEDROCK=1
 AWS_REGION=us-west-2
 
-# Work-tree parking lot
-WT_ROOT=$HOME/worktrees
+# Work-tree parking lot (uncomment and customize to override default)
+# WT_ROOT=/custom/path/to/worktrees  # Default: ../worktrees relative to repo root
 
 # Docker resource hints
 CPU_LIMIT=4

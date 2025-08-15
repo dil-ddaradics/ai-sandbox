@@ -13,7 +13,7 @@ fi
 
 # Check AWS connectivity in container before launching Claude
 _green "Checking AWS credential connectivity..."
-if ! docker exec "$CTR" /usr/local/bin/aws-connectivity-check; then
+if ! docker exec "$CTR" /usr/local/bin/aws-connectivity-check.sh; then
   _red "AWS credential check failed. Please restart the credential server with:"
   _red "  ai-awsvault <your-aws-profile>"
   exit 1

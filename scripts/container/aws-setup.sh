@@ -2,7 +2,8 @@
 # aws-setup.sh - Sets up AWS credential proxy and environment variables
 set -e
 
-CRED_FILE="/host/.ai/env/awsvault_url"
+CRED_FILE_ENV="/host/.ai/env/awsvault_url"
+CRED_FILE_LEGACY="/host/.ai/awsvault_url"
 TOKEN_FILE="/host/.ai/env/awsvault_token"
 ENV_FILE="/etc/profile.d/aws-credentials.sh"
 PROXY_PID_FILE="/tmp/socat_proxy.pid"
@@ -16,13 +17,14 @@ log_message() {
 
 # Function to check if socat is running with correct parameters
 check_socat() {
-  local target_port=$1
+  local target_host=$1
+  local target_port=$2
   
   if [[ -f "$PROXY_PID_FILE" ]]; then
     local pid=$(cat "$PROXY_PID_FILE")
     if ps -p "$pid" >/dev/null 2>&1; then
-      # Check if the process is socat and connects to the right port
-      if ps -o cmd= -p "$pid" | grep -q "host.docker.internal:${target_port}"; then
+      # Check if the process is socat and connects to the right host:port
+      if ps -o cmd= -p "$pid" | grep -q "${target_host}:${target_port}"; then
         log_message "Socat proxy already running with correct configuration (PID: $pid)"
         return 0
       else
@@ -41,7 +43,8 @@ check_socat() {
 
 # Function to start or restart socat proxy
 setup_socat_proxy() {
-  local host_port=$1
+  local host_address=$1
+  local host_port=$2
   
   # Kill existing socat if running
   if [[ -f "$PROXY_PID_FILE" ]]; then
@@ -55,8 +58,8 @@ setup_socat_proxy() {
   fi
   
   # Start new socat proxy
-  log_message "Starting socat proxy from localhost:$PROXY_PORT to host.docker.internal:$host_port"
-  socat TCP-LISTEN:${PROXY_PORT},bind=127.0.0.1,fork,reuseaddr TCP:host.docker.internal:${host_port} &
+  log_message "Starting socat proxy from localhost:$PROXY_PORT to ${host_address}:${host_port}"
+  socat TCP-LISTEN:${PROXY_PORT},bind=127.0.0.1,fork,reuseaddr TCP:${host_address}:${host_port} &
   local new_pid=$!
   echo "$new_pid" > "$PROXY_PID_FILE"
   chmod 600 "$PROXY_PID_FILE"
@@ -122,30 +125,47 @@ test_credentials() {
 main() {
   log_message "Starting AWS credential setup"
   
-  # Check if credential file exists
-  if [[ ! -f "$CRED_FILE" ]]; then
-    log_message "ERROR: AWS credential URL file not found at $CRED_FILE"
+  # Read URL directly from host files, never use environment variables
+  local host_url=""
+  
+  # Try env subdirectory first (preferred location)
+  if [[ -f "$CRED_FILE_ENV" ]]; then
+    host_url=$(cat "$CRED_FILE_ENV")
+    log_message "Read URL from $CRED_FILE_ENV"
+  # Fall back to legacy location
+  elif [[ -f "$CRED_FILE_LEGACY" ]]; then
+    host_url=$(cat "$CRED_FILE_LEGACY")
+    log_message "Read URL from $CRED_FILE_LEGACY"
+  else
+    log_message "ERROR: AWS credential URL file not found"
     return 1
   fi
   
-  # Read the URL from the file
-  HOST_URL=$(cat "$CRED_FILE")
-  HOST_PORT_INFO=$(echo "$HOST_URL" | cut -d/ -f3)
-  HOST_PORT=$(echo "$HOST_PORT_INFO" | cut -d: -f2)
+  # Extract the host and port
+  local host_part=$(echo "$host_url" | cut -d/ -f3)
+  local host_address=$(echo "$host_part" | cut -d: -f1)
+  local host_port=$(echo "$host_part" | cut -d: -f2)
   
-  if [[ -z "$HOST_PORT" ]]; then
-    log_message "ERROR: Could not extract port from URL: $HOST_URL"
+  if [[ -z "$host_port" ]]; then
+    log_message "ERROR: Could not extract port from URL: $host_url"
     return 1
   fi
   
-  log_message "Detected host credential server URL: $HOST_URL (port: $HOST_PORT)"
-  
-  # Check if socat is already running with the correct port
-  if ! check_socat "$HOST_PORT"; then
-    setup_socat_proxy "$HOST_PORT"
+  # Always transform 127.0.0.1 or localhost to host.docker.internal
+  local docker_host_address="$host_address"
+  if [[ "$host_address" == "127.0.0.1" || "$host_address" == "localhost" ]]; then
+    docker_host_address="host.docker.internal"
+    log_message "Translated $host_address to $docker_host_address for container access"
   fi
   
-  # Set correct URL regardless of what's in the environment
+  log_message "Detected host credential server URL: $host_url (port: $host_port)"
+  
+  # Check if socat is already running with the correct configuration
+  if ! check_socat "$docker_host_address" "$host_port"; then
+    setup_socat_proxy "$docker_host_address" "$host_port"
+  fi
+  
+  # Set correct URL for credential access
   export AWS_CONTAINER_CREDENTIALS_FULL_URI="http://localhost:${PROXY_PORT}/"
   
   # Update authorization token
@@ -156,8 +176,8 @@ main() {
     log_message "AWS credential setup completed successfully"
     return 0
   else
-    log_message "WARNING: AWS credential setup completed but credential test failed"
-    return 0  # Still return success to continue operation
+    log_message "ERROR: AWS credential setup failed - credentials not accessible"
+    return 1
   fi
 }
 

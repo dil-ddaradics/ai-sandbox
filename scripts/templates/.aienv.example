@@ -5,8 +5,8 @@ AWS_REGION=us-west-2
 # Direnv integration - set to 0 to disable direnv usage
 USE_DIRENV=1
 
-# Work‑tree parking lot
-WT_ROOT=$HOME/worktrees
+# Work‑tree parking lot (uncomment and customize to override default)
+# WT_ROOT=/custom/path/to/worktrees  # Default: ../worktrees relative to repo root
 
 # IMDS endpoint from aws‑vault --server
 IMDS_URL=http://host.docker.internal:9099/12345

@@ -33,7 +33,20 @@ fi
 
 # defaults
 USE_DIRENV="${USE_DIRENV:-1}"
-WT_ROOT="${WT_ROOT:-$HOME/worktrees}"
+
+# Get repository root path for WT_ROOT calculation
+_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo ".")"
+
+# Determine parent directory for worktrees
+if echo "$_REPO_ROOT" | grep -q '/worktrees/'; then
+  # We're in a worktree, extract the parent directory of the "worktrees" folder
+  _PARENT_DIR=$(echo "$_REPO_ROOT" | sed 's|/worktrees/.*||')
+else
+  # We're in the main repo, use its parent directory
+  _PARENT_DIR="$(dirname "$_REPO_ROOT")"
+fi
+
+WT_ROOT="${WT_ROOT:-$_PARENT_DIR/worktrees}"
 CLAUDE_CODE_USE_BEDROCK="${CLAUDE_CODE_USE_BEDROCK:-1}"
 AWS_REGION="${AWS_REGION:-us-west-2}"
 CPU_LIMIT="${CPU_LIMIT:-}"
