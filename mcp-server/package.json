@@ -1,14 +1,29 @@
 {
-  "name": "ai-sandbox-mcp-server",
+  "name": "@dil-ddaradics/ai-sandbox-mcp-server",
   "version": "0.1.0",
   "description": "Model Context Protocol server for AI Sandbox",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "ai-sandbox-mcp": "./bin/cli.js"
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:cli",
+    "build:cli": "chmod +x ./bin/cli.js",
     "start": "ts-node --esm src/index.ts",
     "dev": "ts-node-dev --respawn --esm src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "npm run build",
+    "publish": "npm publish",
+    "version": "npm version"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dil-ddaradics/ai-sandbox.git",
+    "directory": "mcp-server"
   },
   "keywords": [
     "mcp",
@@ -17,7 +32,7 @@
     "model-context-protocol",
     "ai-sandbox"
   ],
-  "author": "",
+  "author": "dil-ddaradics",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -31,5 +46,11 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ]
 }

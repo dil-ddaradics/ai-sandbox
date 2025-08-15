@@ -1,19 +1,48 @@
 # AI Sandbox MCP Server
 
-A Model Context Protocol (MCP) server for AI Sandbox that provides custom tools and resources for AI assistants.
+A Model Context Protocol (MCP) server for AI Sandbox that provides custom tools and resources for AI assistants. This package can be installed globally to provide MCP capabilities to Claude and other AI assistants.
 
 ## Features
 
 - **Greeting Resources**: Personalized greeting messages
 - **Calculator Tools**: Basic math operations (add, subtract, multiply, divide)
 - **Echo Tool**: Simple tool for testing
+- **Global Installation**: Can be installed as a global CLI tool
 
 ## Prerequisites
 
 - Node.js v18.x or higher
 - npm or yarn
+- GitHub account with access to the repository
 
-## Installation
+## Installation Options
+
+### Global Installation from GitHub Packages
+
+1. Configure npm to use GitHub Packages for the scope:
+
+Create or edit `~/.npmrc` to add:
+
+```
+@dil-ddaradics:registry=https://npm.pkg.github.com/
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+Replace `YOUR_GITHUB_TOKEN` with your GitHub Personal Access Token (PAT).
+
+2. Install the package globally:
+
+```bash
+npm install -g @dil-ddaradics/ai-sandbox-mcp-server
+```
+
+3. Verify the installation:
+
+```bash
+ai-sandbox-mcp --version
+```
+
+### Local Development Installation
 
 1. Clone the AI Sandbox repository:
 
@@ -32,17 +61,37 @@ npm install
 
 ### Running the Server
 
-To run the MCP server:
+#### Using Global Installation
+
+If installed globally, simply run:
+
+```bash
+ai-sandbox-mcp
+```
+
+This will start the MCP server using stdio transport.
+
+#### Using Local Installation
+
+To run the MCP server locally:
 
 ```bash
 npm start
 ```
 
-This will start the server using stdio transport, which allows it to be connected to Claude Code.
-
 ### Connecting to Claude Code
 
-To use the MCP server with Claude Code:
+#### With Global Installation
+
+To use the globally installed MCP server with Claude Code:
+
+```bash
+claude mcp add --transport stdio ai-sandbox-mcp -- ai-sandbox-mcp
+```
+
+#### With Local Installation
+
+To use the local MCP server with Claude Code:
 
 ```bash
 claude mcp add --transport stdio ai-sandbox-mcp -- 'npm start --prefix /path/to/ai-sandbox/mcp-server'
