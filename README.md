@@ -1,6 +1,6 @@
 # AI Sandbox
 
-A turn-key workflow for spinning up isolated AI development sandboxes for every Git branch on your machine. Seamlessly switch between branches while keeping your development environment and AI assistants isolated and branch-specific.
+A turn-key workflow for spinning up isolated AI development sandboxes for every Git branch on your machine. Seamlessly switch between branches while keeping your development environment and AI assistants isolated and branch-specific. AI Sandbox was designed with a primary goal: enabling AI agents to run with full autonomy in isolated environments, eliminating the need to check every command while maintaining security.
 
 ## Table of Contents
 - [Why AI Sandbox?](#why-ai-sandbox)
@@ -14,6 +14,7 @@ A turn-key workflow for spinning up isolated AI development sandboxes for every 
 
 ## Why AI Sandbox?
 
+- 🔐 **Safe autonomy**: Run AI agents with full autonomy in isolated containers - no need to check every command
 - 🌿 **Branch-isolated environments**: Every feature branch gets its own container and workspace
 - 🔄 **Switch contexts instantly**: Jump between different branches without environment conflicts
 - 🤖 **AI assistant integration**: Claude available in every workspace, with AWS credentials handled automatically
