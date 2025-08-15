@@ -51,6 +51,8 @@ colima start --cpu 4 --memory 8
 
 ### 2. Install AI Sandbox
 
+#### Standard Installation
+
 ```bash
 # Clone this repository
 git clone https://github.com/dil-ddaradics/ai-sandbox.git
@@ -63,6 +65,27 @@ After installation, you'll see:
 ```
 ✔ AI sandbox scripts installed in /path/to/your/project
 ```
+
+#### Global Installation
+
+For convenience, you can make the AI Sandbox installer globally available on your system:
+
+```bash
+# Clone this repository
+git clone https://github.com/dil-ddaradics/ai-sandbox.git
+
+# Make the installer globally available (may require sudo)
+sudo ./ai-sandbox/global-install.sh
+
+# Now you can install AI Sandbox in any repository
+install-ai-sandbox ~/path/to/your/repo
+
+# Or install in the current directory
+cd ~/path/to/your/repo
+install-ai-sandbox
+```
+
+This creates a symbolic link to the installer in your PATH, allowing you to run it from anywhere.
 
 ### 3. Set Up AWS Credentials
 
