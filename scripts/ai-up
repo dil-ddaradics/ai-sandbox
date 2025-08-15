@@ -78,12 +78,14 @@ if ! git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
   if $YES_FLAG; then
     _green "Automatically creating branch '$TARGET_BRANCH'"
     git branch "$TARGET_BRANCH"
+    _green "Branch '$TARGET_BRANCH' created. Branch location: $WT_ROOT/$REPO_NAME/$TARGET_BRANCH"
   else
     # Branch doesn't exist, offer to create it
     read -p "Branch '$TARGET_BRANCH' doesn't exist. Create it? [y/N] " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
       git branch "$TARGET_BRANCH"
+      _green "Branch '$TARGET_BRANCH' created. Branch location: $WT_ROOT/$REPO_NAME/$TARGET_BRANCH"
     else
       _die "Branch '$TARGET_BRANCH' doesn't exist"
     fi
@@ -225,4 +227,5 @@ else
 fi
 
 echo "$CTR" > "$WORKTREE_DIR/.ai-container"
-_green "✔ Container $CTR running for $TARGET_BRANCH at $WORKTREE_DIR"
+_green "✔ Container $CTR running for $TARGET_BRANCH"
+_green "📁 Branch location: $WORKTREE_DIR"
