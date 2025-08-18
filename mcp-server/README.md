@@ -15,7 +15,27 @@ A Model Context Protocol (MCP) server for AI Sandbox that provides custom tools 
 
 ## Installation
 
-### From npm Registry
+### Using npx (No Installation Required)
+
+```bash
+npx @dil-ddaradics/ai-sandbox-mcp-server
+```
+
+This runs the MCP server directly without installing it. This is the recommended method for most users.
+
+### Global Installation
+
+```bash
+npm install -g @dil-ddaradics/ai-sandbox-mcp-server
+```
+
+After installing globally, you can run it using:
+
+```bash
+ai-sandbox-mcp
+```
+
+### Local Installation
 
 ```bash
 npm install @dil-ddaradics/ai-sandbox-mcp-server
@@ -53,14 +73,20 @@ This will start the server using stdio transport, which allows it to communicate
 To use the MCP server with Claude Code:
 
 ```bash
-# If installed from npm
+# Using npx (recommended, no installation required)
+claude mcp add --transport stdio ai-sandbox-mcp -- 'npx @dil-ddaradics/ai-sandbox-mcp-server'
+
+# If installed globally
+claude mcp add --transport stdio ai-sandbox-mcp -- 'ai-sandbox-mcp'
+
+# If installed locally from npm
 claude mcp add --transport stdio ai-sandbox-mcp -- 'node /path/to/node_modules/@dil-ddaradics/ai-sandbox-mcp-server/dist/index.js'
 
 # If running from local development installation
 claude mcp add --transport stdio ai-sandbox-mcp -- 'npm start --prefix /path/to/ai-sandbox/mcp-server'
 ```
 
-Replace `/path/to/...` with the actual paths on your system.
+Replace `/path/to/...` with the actual paths on your system if needed.
 
 ## Testing the Server
 
