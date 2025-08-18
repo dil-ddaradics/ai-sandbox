@@ -1,11 +1,11 @@
 {
   "name": "@dil-ddaradics/ai-sandbox-mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "Model Context Protocol server for AI Sandbox",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "ai-sandbox-mcp": "./bin/cli.js"
+    "ai-sandbox-mcp": "bin/cli.js"
   },
   "scripts": {
     "build": "tsc && npm run build:cli",
@@ -14,11 +14,11 @@
     "dev": "ts-node-dev --respawn --esm src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npm run build",
-    "publish": "npm publish",
+    "publishToNpm": "npm publish --access public",
     "version": "npm version"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   },
   "repository": {
     "type": "git",

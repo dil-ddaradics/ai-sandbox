@@ -1,0 +1,30 @@
+# Source code
+src/
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+*.log
+*.tgz
+
+# Tests
+tests/
+*.test.ts
+*.spec.ts
+
+# Configuration files
+tsconfig.json
+.gitignore
+.npmrc
+.eslintrc
+.prettierrc
+
+# Documentation specific to development
+PUBLISHING.md
+how-to-build-an-mcp-server.md
+plan.md
+
+# Build artifacts
+*.tsbuildinfo
