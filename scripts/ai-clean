@@ -4,17 +4,23 @@ source "$(dirname "$0")/_common.sh"
 
 # Parse arguments
 stop_creds=false
+JSON_OUTPUT=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --all|--full)
       stop_creds=true
       shift
       ;;
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
     --help|-h)
-      echo "Usage: cc-clean [options]"
+      echo "Usage: ai-clean [options]"
       echo
       echo "Options:"
       echo "  --all, --full    Also stop AWS credential server"
+      echo "  --json          Output in JSON format for MCP integration"
       echo "  --help, -h       Show this help message"
       exit 0
       ;;
@@ -27,24 +33,97 @@ done
 WT_DIR="$(pwd)"
 ENV_FILE="$WT_DIR/.env.compose"
 
+# Collect results for JSON output
+CONTAINER_STOPPED=false
+WORKTREE_REMOVED=false
+CREDS_STOPPED=false
+DIR_REMOVED=false
+
 # Stop container
 if [[ -f "$ENV_FILE" ]]; then
-  _green "Stopping container..."
-  docker compose --env-file "$ENV_FILE" down || true
+  if ! $JSON_OUTPUT; then
+    _green "Stopping container..."
+  fi
+  
+  # Check if docker compose subcommand exists, otherwise use docker-compose
+  if docker compose version &>/dev/null; then
+    if docker compose --env-file "$ENV_FILE" -f "$ROOT_REPO/.ai/docker-compose.yml" down --remove-orphans 2>/dev/null; then
+      CONTAINER_STOPPED=true
+    fi
+  else
+    # Use docker-compose for older versions
+    if docker-compose --env-file "$ENV_FILE" -f "$ROOT_REPO/.ai/docker-compose.yml" down --remove-orphans 2>/dev/null; then
+      CONTAINER_STOPPED=true
+    fi
+  fi
 fi
 
 # Remove worktree
-_green "Removing Git worktree..."
-git worktree remove --force "$WT_DIR" 2>/dev/null || true
-git -C "$(git rev-parse --show-toplevel 2>/dev/null || echo ".") " worktree prune 2>/dev/null || true
+if ! $JSON_OUTPUT; then
+  _green "Removing Git worktree..."
+fi
+
+if git worktree remove --force "$WT_DIR" 2>/dev/null; then
+  WORKTREE_REMOVED=true
+fi
+git -C "$(git rev-parse --show-toplevel 2>/dev/null || echo ".")" worktree prune 2>/dev/null || true
 
 # If --all was specified, also stop credential server
 if [[ "$stop_creds" = true ]]; then
-  _green "Stopping AWS credential server..."
-  "$(dirname "$0")/cc-awsvault-stop"
+  if ! $JSON_OUTPUT; then
+    _green "Stopping AWS credential server..."
+  fi
+  
+  # Capture output to check success
+  if "$(dirname "$0")/ai-awsvault-stop" $([[ $JSON_OUTPUT == true ]] && echo "--json") > /dev/null; then
+    CREDS_STOPPED=true
+  fi
 fi
 
-# Clean up directory
-cd ..
-rm -rf "$WT_DIR"
-_green "✔ Worktree & container cleaned"
+# Clean up directory only if it's a worktree
+ORIG_DIR="$WT_DIR"
+
+# Check if this is a git worktree or main repo
+IS_WORKTREE=false
+if [[ -f "$ENV_FILE" ]]; then
+  # Try to read from env.compose
+  IS_WORKTREE=$(grep "^IS_WORKTREE=" "$ENV_FILE" 2>/dev/null | cut -d= -f2 || echo "false")
+fi
+
+# If IS_WORKTREE not found in env file, use git worktree list as fallback
+if [[ "$IS_WORKTREE" != "true" ]]; then
+  if git worktree list 2>/dev/null | grep -q "$WT_DIR"; then
+    IS_WORKTREE=true
+  fi
+fi
+
+if [[ "$IS_WORKTREE" == "true" ]]; then
+  # Only remove the directory if it's a worktree
+  if ! $JSON_OUTPUT; then
+    _green "Removing worktree directory..."
+  fi
+  cd ..
+  if rm -rf "$WT_DIR"; then
+    DIR_REMOVED=true
+  fi
+else
+  if ! $JSON_OUTPUT; then
+    _green "Keeping main repository directory"
+  fi
+fi
+
+# Output results
+if $JSON_OUTPUT; then
+  cat <<EOF
+{
+  "success": true,
+  "container_stopped": $CONTAINER_STOPPED,
+  "worktree_removed": $WORKTREE_REMOVED,
+  "directory_removed": $DIR_REMOVED,
+  "credentials_stopped": $CREDS_STOPPED,
+  "path": "$ORIG_DIR"
+}
+EOF
+else
+  _green "✔ Worktree & container cleaned"
+fi

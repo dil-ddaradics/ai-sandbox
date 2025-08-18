@@ -8,6 +8,7 @@ PORT="${PORT:-9099}"
 NON_INTERACTIVE=0
 PROFILE=""
 DEBUG="${DEBUG:-0}"
+JSON_OUTPUT=false
 
 # Function to validate if a credential server is working properly
 validate_credential_server() {
@@ -43,12 +44,17 @@ while [[ $# -gt 0 ]]; do
       DEBUG=1
       shift
       ;;
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
     -h|--help)
       echo "Usage: ai-awsvault [OPTIONS] <aws-profile>"
       echo
       echo "Options:"
       echo "  --non-interactive   Run in non-interactive mode (use with automation)"
       echo "  --debug             Enable debug output"
+      echo "  --json              Output in JSON format for MCP integration"
       echo "  -h, --help          Show this help message"
       echo
       exit 0
@@ -69,7 +75,14 @@ if [[ -z "$PROFILE" ]]; then
   PROFILE="${AWS_PROFILE:-}"
 fi
 
-[[ -z "$PROFILE" ]] && _die "Usage: ai-awsvault <aws-profile> (or set AWS_PROFILE)"
+if [[ -z "$PROFILE" ]]; then
+  if $JSON_OUTPUT; then
+    printf '{"success": false, "error": "No profile provided. Use ai-awsvault <aws-profile> or set AWS_PROFILE"}'
+    exit 1
+  else
+    _die "Usage: ai-awsvault <aws-profile> (or set AWS_PROFILE)"
+  fi
+fi
 
 # Set up logging
 LOG_DIR="$HOME/.ai/logs"
@@ -82,12 +95,14 @@ log() {
   local message=$2
   echo "$(date +"%Y-%m-%d %H:%M:%S") [$level] $message" >> "$LOG_FILE"
   
-  case "$level" in
-    INFO)  [[ "$DEBUG" == "1" ]] && _green "$message" || _green "$message" ;;
-    WARN)  _yellow "$message" ;;
-    ERROR) _red "$message" ;;
-    *)     [[ "$DEBUG" == "1" ]] && echo "$message" || echo "$message" ;;
-  esac
+  if ! $JSON_OUTPUT; then
+    case "$level" in
+      INFO)  [[ "$DEBUG" == "1" ]] && _green "$message" || _green "$message" ;;
+      WARN)  _yellow "$message" ;;
+      ERROR) _red "$message" ;;
+      *)     [[ "$DEBUG" == "1" ]] && echo "$message" || echo "$message" ;;
+    esac
+  fi
 }
 
 log "INFO" "Starting ai-awsvault with profile $PROFILE"
@@ -286,7 +301,9 @@ if [[ -s "$ENV_DIR/awsvault_url" ]]; then
   if [[ -n "$AUTH_TOKEN" ]]; then
     # Check with authorization token
     if curl -s -m 2 -H "Authorization: $AUTH_TOKEN" "$IMDS_URL" | grep -q "AccessKeyId"; then
-      _green "✓ Credential server validation with token successful!"
+      if ! $JSON_OUTPUT; then
+    _green "✓ Credential server validation with token successful!"
+  fi
     else
       _yellow "⚠ Credential validation with token failed. Trying without token..."
       if curl -s -m 2 "$IMDS_URL" | grep -q "AccessKeyId"; then
@@ -300,7 +317,9 @@ if [[ -s "$ENV_DIR/awsvault_url" ]]; then
   else
     # Try without token
     if curl -s -m 2 "$IMDS_URL" | grep -q "AccessKeyId"; then
-      _green "✓ Credential server validation successful!"
+      if ! $JSON_OUTPUT; then
+    _green "✓ Credential server validation successful!"
+  fi
     else
       _yellow "⚠ Could not validate credential server. It may still be starting up or there might be an issue."
       _yellow "Try running: curl -v $IMDS_URL"
@@ -320,12 +339,44 @@ if [[ -s "$ENV_DIR/awsvault_url" ]]; then
   # No longer saving URL in the old location - only using env directory
   # Token is already saved in the env directory
   
-  # still echo so caller can `eval $(ai-awsvault …)` if desired
-  echo "export IMDS_URL=$DOCKER_URL"
-  if [[ -n "$AUTH_TOKEN" ]]; then
-    echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=$AUTH_TOKEN"
+  # Format output based on mode
+  if $JSON_OUTPUT; then
+    # Generate JSON output
+    printf '{
+'
+    printf '  "success": true,
+'
+    printf '  "profile": "%s",
+' "$PROFILE"
+    printf '  "credentials": {
+'
+    printf '    "url": "%s",
+' "${DOCKER_URL//\\/\\\\}"
+    if [[ -n "$AUTH_TOKEN" ]]; then
+      printf '    "auth_token": "%s",
+' "${AUTH_TOKEN//\\/\\\\}"
+    else
+      printf '    "auth_token": null,
+'
+    fi
+    printf '    "server_pid": %s
+' "$(cat "$HOME/.ai/awsvault_pid" 2>/dev/null || echo "null")"
+    printf '  }
+'
+    printf '}'
+  else
+    # Standard output for shell evaluation
+    echo "export IMDS_URL=$DOCKER_URL"
+    if [[ -n "$AUTH_TOKEN" ]]; then
+      echo "export AWS_CONTAINER_AUTHORIZATION_TOKEN=$AUTH_TOKEN"
+    fi
   fi
 else
-  _red "Error: Could not find credential server URL file."
-  _die "Credential server may not have started correctly. Check logs at $LOG_FILE"
+  if $JSON_OUTPUT; then
+    printf '{"success": false, "error": "Could not find credential server URL file. Server may not have started correctly.", "log_file": "%s"}' "$LOG_FILE"
+    exit 1
+  else
+    _red "Error: Could not find credential server URL file."
+    _die "Credential server may not have started correctly. Check logs at $LOG_FILE"
+  fi
 fi

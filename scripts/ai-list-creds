@@ -1,25 +1,64 @@
 #!/usr/bin/env bash
-# cc-list-creds - Lists running AWS credential servers
+# ai-list-creds - Lists running AWS credential servers
 set -euo pipefail
 source "$(dirname "$0")/_common.sh"
+
+# Parse arguments
+JSON_OUTPUT=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: ai-list-creds [OPTIONS]"
+      echo
+      echo "Options:"
+      echo "  --json      Output in JSON format for MCP integration"
+      echo "  -h, --help  Show this help message"
+      echo
+      exit 0
+      ;;
+    *)
+      _red "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
 
 PORT="${PORT:-9099}"
 SERVER_PROCESSES=$(pgrep -f "aws-vault.*(--server|--ecs-server)" || echo "")
 
+# Prepare storage for credential servers data
+DECLARE -A CRED_SERVERS
+SAVED_STATUS=""
+SAVED_URL=""
+SAVED_PID=""
+
 # Check saved URL file and PID file
-if [[ -f "$HOME/.cc/awsvault_url" ]]; then
-  SAVED_URL=$(cat "$HOME/.cc/awsvault_url")
-  _green "Saved credential server URL:"
-  echo "  $SAVED_URL"
+if [[ -f "$HOME/.ai/awsvault_url" ]]; then
+  SAVED_URL=$(cat "$HOME/.ai/awsvault_url")
+  
+  if ! $JSON_OUTPUT; then
+    _green "Saved credential server URL:"
+    echo "  $SAVED_URL"
+  fi
   
   # Check if saved PID exists and is valid
-  if [[ -f "$HOME/.cc/awsvault_pid" ]]; then
-    SAVED_PID=$(cat "$HOME/.cc/awsvault_pid")
+  if [[ -f "$HOME/.ai/awsvault_pid" ]]; then
+    SAVED_PID=$(cat "$HOME/.ai/awsvault_pid")
     if ps -p "$SAVED_PID" >/dev/null 2>&1 && ps -p "$SAVED_PID" -o command= | grep -q "aws-vault"; then
-      echo "  Status: RUNNING (PID: $SAVED_PID)"
+      SAVED_STATUS="RUNNING"
+      if ! $JSON_OUTPUT; then
+        echo "  Status: RUNNING (PID: $SAVED_PID)"
+      fi
     else
       # PID file exists but process is not running
-      echo "  Status: NOT RUNNING (stale PID)"
+      SAVED_STATUS="NOT_RUNNING"
+      if ! $JSON_OUTPUT; then
+        echo "  Status: NOT RUNNING (stale PID)"
+      fi
     fi
   else
     # Extract port from saved URL
@@ -27,25 +66,45 @@ if [[ -f "$HOME/.cc/awsvault_url" ]]; then
     if [[ -n "$SAVED_PORT" ]]; then
       # Check if server on this port is actually running
       if lsof -i :"$SAVED_PORT" 2>/dev/null | grep -q aws-vault; then
-        echo "  Status: RUNNING (port: $SAVED_PORT)"
+        SAVED_STATUS="RUNNING"
+        if ! $JSON_OUTPUT; then
+          echo "  Status: RUNNING (port: $SAVED_PORT)"
+        fi
       else
-        echo "  Status: NOT RUNNING (stale URL)"
+        SAVED_STATUS="NOT_RUNNING"
+        if ! $JSON_OUTPUT; then
+          echo "  Status: NOT RUNNING (stale URL)"
+        fi
       fi
     else
-      echo "  Status: UNKNOWN (malformed URL)"
+      SAVED_STATUS="UNKNOWN"
+      if ! $JSON_OUTPUT; then
+        echo "  Status: UNKNOWN (malformed URL)"
+      fi
     fi
   fi
-  echo ""
+  
+  if ! $JSON_OUTPUT; then
+    echo ""
+  fi
 fi
 
 # List all running aws-vault servers
-_green "Running AWS credential servers:"
+ALL_SERVERS=()
+if ! $JSON_OUTPUT; then
+  _green "Running AWS credential servers:"
+fi
+
 if [[ -z "$SERVER_PROCESSES" ]]; then
-  echo "  No aws-vault credential servers are currently running"
+  if ! $JSON_OUTPUT; then
+    echo "  No aws-vault credential servers are currently running"
+  fi
 else
-  # Print header
-  printf "  %-6s %-10s %-8s %s\n" "PID" "PORT" "AGE" "COMMAND"
-  printf "  %-6s %-10s %-8s %s\n" "------" "----------" "--------" "------------------------------"
+  # Print header if not JSON output
+  if ! $JSON_OUTPUT; then
+    printf "  %-6s %-10s %-8s %s\n" "PID" "PORT" "AGE" "COMMAND"
+    printf "  %-6s %-10s %-8s %s\n" "------" "----------" "--------" "------------------------------"
+  fi
   
   # For each process, get the port, start time, and command
   for pid in $SERVER_PROCESSES; do
@@ -91,12 +150,58 @@ else
       port="unknown"
     fi
     
-    printf "  %-6s %-10s %-8s %s\n" "$pid" "$port" "$age" "$cmd"
+    # Store server info
+    SERVER_JSON=$(cat <<EOF
+{
+  "pid": "$pid",
+  "port": "$port",
+  "age": "$age",
+  "age_seconds": $age_seconds,
+  "command": "$cmd",
+  "start_time": "$start_time"
+}
+EOF
+    )
+    ALL_SERVERS+=("$SERVER_JSON")
+    
+    if ! $JSON_OUTPUT; then
+      printf "  %-6s %-10s %-8s %s\n" "$pid" "$port" "$age" "$cmd"
+    fi
   done
 fi
 
-echo ""
-_green "Management commands:"
-echo "  cc-awsvault <profile>     # Start credential server"
-echo "  cc-awsvault-stop          # Stop credential server"
-echo "  cc-clean --all            # Clean worktree and stop credential server"
+# Format JSON output if requested
+if $JSON_OUTPUT; then
+  # Start JSON object
+  printf "{
+"
+  
+  # Add saved credential information
+  printf "  \"saved_credentials\": {
+"
+  printf "    \"url\": \"%s\",\n" "${SAVED_URL//\\/\\\\}"
+  printf "    \"status\": \"%s\",\n" "$SAVED_STATUS"
+  printf "    \"pid\": \"%s\"\n" "$SAVED_PID"
+  printf "  },\n"
+  
+  # Add running servers array
+  printf "  \"running_servers\": [
+"
+  for i in "${!ALL_SERVERS[@]}"; do
+    printf "    %s" "${ALL_SERVERS[$i]}"
+    if [[ $i -lt $((${#ALL_SERVERS[@]} - 1)) ]]; then
+      printf ",\n"
+    else
+      printf "\n"
+    fi
+  done
+  printf "  ]\n}"
+  
+else
+  # Regular human-readable output
+  echo ""
+  _green "Management commands:"
+  echo "  ai-awsvault <profile>     # Start credential server"
+  echo "  ai-awsvault-stop          # Stop credential server"
+  echo "  ai-clean --all            # Clean worktree and stop credential server"
+fi

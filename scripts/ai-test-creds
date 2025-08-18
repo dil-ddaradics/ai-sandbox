@@ -3,29 +3,98 @@ set -euo pipefail
 source "$(dirname "$0")/_common.sh"
 _need docker
 
-# Find the container name
-if [[ $# -gt 0 ]]; then
-  CONTAINER="$1"
+# Parse arguments
+JSON_OUTPUT=false
+CONTAINER=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: ai-test-creds [OPTIONS] [CONTAINER_NAME]"
+      echo
+      echo "Options:"
+      echo "  --json              Output in JSON format for MCP integration"
+      echo "  -h, --help          Show this help message"
+      echo
+      echo "Arguments:"
+      echo "  CONTAINER_NAME      Name of the container to test (optional)"
+      echo "                      If not specified, tries to determine from current directory"
+      echo
+      exit 0
+      ;;
+    -*)
+      _red "Unknown option: $1"
+      exit 1
+      ;;
+    *)
+      # This must be the container name
+      CONTAINER="$1"
+      shift
+      ;;
+  esac
+done
 else
   # Use the current directory to guess the container name
   CURRENT_DIR="$(pwd)"
-  if [[ -f "$CURRENT_DIR/.cc-container" ]]; then
+  if [[ -f "$CURRENT_DIR/.ai-container" ]]; then
+    CONTAINER=$(cat "$CURRENT_DIR/.ai-container")
+  elif [[ -f "$CURRENT_DIR/.cc-container" ]]; then
+    # Legacy support
     CONTAINER=$(cat "$CURRENT_DIR/.cc-container")
   else
     # Check if we're in a worktree
     REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
-    if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.cc-container" ]]; then
+    if [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.ai-container" ]]; then
+      CONTAINER=$(cat "$REPO_ROOT/.ai-container")
+    elif [[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.cc-container" ]]; then
+      # Legacy support
       CONTAINER=$(cat "$REPO_ROOT/.cc-container")
     else
-      _die "Cannot determine container name. Please specify as argument."
+      if $JSON_OUTPUT; then
+        printf '{"success": false, "error": "Cannot determine container name. Please specify as argument."}'  
+        exit 1
+      else
+        _die "Cannot determine container name. Please specify as argument."
+      fi
     fi
   fi
 fi
 
 # Check if container exists
 if ! docker ps --format "{{.Names}}" | grep -q "^$CONTAINER$"; then
-  _die "Container $CONTAINER not running. Start it with cc-up first."
+  if $JSON_OUTPUT; then
+    printf '{"success": false, "error": "Container %s not running. Start it with ai-up first.", "container": "%s"}' "$CONTAINER" "$CONTAINER"
+    exit 1
+  else
+    _die "Container $CONTAINER not running. Start it with ai-up first."
+  fi
 fi
 
-_green "Running credential refresh test in container $CONTAINER..."
-docker exec -it "$CONTAINER" /usr/local/bin/test-cred-refresh
+# Run credential refresh test
+if ! $JSON_OUTPUT; then
+  _green "Running credential refresh test in container $CONTAINER..."
+fi
+
+# Capture output from test script
+OUTPUT=$(docker exec -t "$CONTAINER" /usr/local/bin/test-cred-refresh 2>&1 || echo "FAILED")
+SUCCESS=$?
+
+# Format and output results
+if $JSON_OUTPUT; then
+  if [[ $SUCCESS -eq 0 && "$OUTPUT" != "FAILED" ]]; then
+    # Clean the output for JSON
+    CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/"/\"/g' | tr -d '\n')
+    printf '{"success": true, "container": "%s", "message": "%s"}' "$CONTAINER" "$CLEAN_OUTPUT"
+  else
+    printf '{"success": false, "container": "%s", "error": "%s"}' "$CONTAINER" "$OUTPUT"
+  fi
+else
+  # Output is already displayed by docker exec -it
+  if [[ "$OUTPUT" == "FAILED" ]]; then
+    exit 1
+  fi
+fi

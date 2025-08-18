@@ -92,13 +92,14 @@ if ! git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
   fi
 fi
 
-# Determine if we're in a worktree
+# Initialize worktree flag and current directory
 IS_WORKTREE=false
 CURRENT_DIR="$(pwd)"
 WORKTREE_LIST="$(git worktree list --porcelain)"
 
 # Check if current directory is a worktree
 if echo "$WORKTREE_LIST" | grep -q "worktree $CURRENT_DIR"; then
+  # Current directory is a worktree
   IS_WORKTREE=true
   CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD)"
   
@@ -161,9 +162,14 @@ if [[ ! -d "$WORKTREE_DIR" ]]; then
     _green "Will use current directory as the worktree instead of creating a new one."
     # Use the current directory as the worktree
     WORKTREE_DIR="$REPO_ROOT"
+    # Not a worktree - it's the main repo
+    IS_WORKTREE=false
   else
     # Try to add the worktree, handle errors
-    if ! git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH" 2>/dev/null; then
+    if git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH" 2>/dev/null; then
+      # Successfully created worktree
+      IS_WORKTREE=true
+    else
       # Check if worktree already exists elsewhere
       EXISTING_WORKTREE=$(git worktree list | grep "$TARGET_BRANCH" | awk '{print $1}')
       
@@ -171,12 +177,19 @@ if [[ ! -d "$WORKTREE_DIR" ]]; then
         _yellow "Worktree for $TARGET_BRANCH already exists at $EXISTING_WORKTREE"
         _green "Using existing worktree location"
         WORKTREE_DIR="$EXISTING_WORKTREE"
+        # This is definitely a worktree
+        IS_WORKTREE=true
       else
         _red "Failed to create worktree. Trying alternate method..."
         # Try to prune any stale worktrees
         git worktree prune
         # Try again
-        git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH" || _die "Could not create worktree for $TARGET_BRANCH"
+        if git worktree add "$WORKTREE_DIR" "$TARGET_BRANCH"; then
+          # Successfully created worktree
+          IS_WORKTREE=true
+        else
+          _die "Could not create worktree for $TARGET_BRANCH"
+        fi
       fi
     fi
   fi
@@ -205,6 +218,9 @@ if [[ -n "$CUSTOM_REGION" ]]; then
   AWS_REGION="$CUSTOM_REGION"
 fi
 
+# Add timestamp for container creation time
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
 cat >"$ENV_FILE" <<EOF
 WORKTREE=$WORKTREE_DIR
 HOME=$HOME
@@ -214,6 +230,8 @@ AWS_REGION=$AWS_REGION
 AI_BRANCH=$TARGET_BRANCH
 CPU_LIMIT=$CPU_LIMIT
 MEM_LIMIT=$MEM_LIMIT
+IS_WORKTREE=$IS_WORKTREE
+TIMESTAMP=$TIMESTAMP
 EOF
 
 # Start container

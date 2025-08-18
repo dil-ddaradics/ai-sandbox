@@ -8,6 +8,11 @@ services:
     volumes:
       - ${WORKTREE}:/workspace
       - ${HOME}/.ai:/host/.ai:ro
+    labels:
+      - "ai.sandbox.repo_path=${WORKTREE}"
+      - "ai.sandbox.branch=${AI_BRANCH}"
+      - "ai.sandbox.is_worktree=${IS_WORKTREE}"
+      - "ai.sandbox.created=${TIMESTAMP:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
       # Legacy path, no longer needed
     # - ${HOME}/.cc:/host/.cc:ro  # For backward compatibility
     environment:

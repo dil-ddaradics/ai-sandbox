@@ -2,7 +2,59 @@
 set -euo pipefail
 source "$(dirname "$0")/_common.sh"
 
+# Parse arguments
+JSON_OUTPUT=false
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      JSON_OUTPUT=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: ai-stop [OPTIONS]"
+      echo
+      echo "Options:"
+      echo "  --json      Output in JSON format for MCP integration"
+      echo "  -h, --help  Show this help message"
+      echo
+      exit 0
+      ;;
+    *)
+      _red "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
+
 ENV_FILE="$(pwd)/.env.compose"
-[[ ! -f "$ENV_FILE" ]] && _die ".env.compose not found – are you in a worktree?"
-docker-compose -f "$ROOT_REPO/.ai/docker-compose.yml" --env-file "$ENV_FILE" down
-_green "Container stopped"
+if [[ ! -f "$ENV_FILE" ]]; then
+  if $JSON_OUTPUT; then
+    printf '{"success": false, "error": ".env.compose not found – are you in a worktree?"}'
+    exit 1
+  else
+    _die ".env.compose not found – are you in a worktree?"
+  fi
+fi
+
+# Get the container name from .env.compose
+CONTAINER_NAME=""
+if grep -q "^AI_CONTAINER_NAME=" "$ENV_FILE"; then
+  CONTAINER_NAME=$(grep "^AI_CONTAINER_NAME=" "$ENV_FILE" | cut -d= -f2)
+fi
+
+# Stop the container
+if docker-compose -f "$ROOT_REPO/.ai/docker-compose.yml" --env-file "$ENV_FILE" down; then
+  if $JSON_OUTPUT; then
+    printf '{"success": true, "container": "%s", "message": "Container stopped successfully"}' "$CONTAINER_NAME"
+  else
+    _green "Container stopped"
+  fi
+else
+  if $JSON_OUTPUT; then
+    printf '{"success": false, "container": "%s", "error": "Failed to stop container"}' "$CONTAINER_NAME"
+    exit 1
+  else
+    _red "Failed to stop container"
+    exit 1
+  fi
+fi
