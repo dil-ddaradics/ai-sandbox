@@ -1,45 +1,24 @@
 # AI Sandbox MCP Server
 
-A Model Context Protocol (MCP) server for AI Sandbox that provides custom tools and resources for AI assistants. This package can be installed globally to provide MCP capabilities to Claude and other AI assistants.
+A Model Context Protocol (MCP) server for AI Sandbox that provides custom tools and resources for AI assistants. This MCP server integrates with Claude Code to enhance AI capabilities with domain-specific tools.
 
 ## Features
 
 - **Greeting Resources**: Personalized greeting messages
 - **Calculator Tools**: Basic math operations (add, subtract, multiply, divide)
 - **Echo Tool**: Simple tool for testing
-- **Global Installation**: Can be installed as a global CLI tool
 
 ## Prerequisites
 
 - Node.js v18.x or higher
 - npm or yarn
-- GitHub account with access to the repository
 
-## Installation Options
+## Installation
 
-### Global Installation from GitHub Packages
-
-1. Configure npm to use GitHub Packages for the scope:
-
-Create or edit `~/.npmrc` to add:
-
-```
-@dil-ddaradics:registry=https://npm.pkg.github.com/
-//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
-```
-
-Replace `YOUR_GITHUB_TOKEN` with your GitHub Personal Access Token (PAT).
-
-2. Install the package globally:
+### From npm Registry
 
 ```bash
-npm install -g @dil-ddaradics/ai-sandbox-mcp-server
-```
-
-3. Verify the installation:
-
-```bash
-ai-sandbox-mcp --version
+npm install @dil-ddaradics/ai-sandbox-mcp-server
 ```
 
 ### Local Development Installation
@@ -61,43 +40,27 @@ npm install
 
 ### Running the Server
 
-#### Using Global Installation
-
-If installed globally, simply run:
-
-```bash
-ai-sandbox-mcp
-```
-
-This will start the MCP server using stdio transport.
-
-#### Using Local Installation
-
 To run the MCP server locally:
 
 ```bash
 npm start
 ```
 
+This will start the server using stdio transport, which allows it to communicate with Claude Code.
+
 ### Connecting to Claude Code
 
-#### With Global Installation
-
-To use the globally installed MCP server with Claude Code:
+To use the MCP server with Claude Code:
 
 ```bash
-claude mcp add --transport stdio ai-sandbox-mcp -- ai-sandbox-mcp
-```
+# If installed from npm
+claude mcp add --transport stdio ai-sandbox-mcp -- 'node /path/to/node_modules/@dil-ddaradics/ai-sandbox-mcp-server/dist/index.js'
 
-#### With Local Installation
-
-To use the local MCP server with Claude Code:
-
-```bash
+# If running from local development installation
 claude mcp add --transport stdio ai-sandbox-mcp -- 'npm start --prefix /path/to/ai-sandbox/mcp-server'
 ```
 
-Replace `/path/to/ai-sandbox/mcp-server` with the actual path to the mcp-server directory.
+Replace `/path/to/...` with the actual paths on your system.
 
 ## Testing the Server
 
@@ -134,16 +97,16 @@ Use the ai-sandbox-mcp server to echo "Hello, MCP!".
 ```
 mcp-server/
 ├── src/
-│   ├── index.ts        # Entry point
+│   ├── index.ts        # Main entry point
 │   ├── resources/      # Resource implementations
 │   │   └── greeting.ts # Greeting resource
 │   └── tools/          # Tool implementations
 │       ├── calculator.ts # Calculator tools
-│       └── echo.ts      # Echo tool
-├── dist/              # Compiled JavaScript
+│       └── echo.ts      # Echo tool for testing
+├── dist/              # Compiled JavaScript output
 ├── tsconfig.json      # TypeScript configuration
-├── package.json       # npm configuration
-└── README.md          # This documentation
+├── package.json       # npm configuration and scripts
+└── README.md          # Documentation
 ```
 
 ### Building
@@ -155,6 +118,31 @@ npm run build
 ```
 
 This will compile the TypeScript code into JavaScript in the `dist` directory.
+
+### Adding New Tools or Resources
+
+To extend the MCP server with new capabilities:
+
+1. Create a new file in `src/tools/` or `src/resources/`
+2. Implement your tool or resource following the existing patterns
+3. Import and register your new components in `src/index.ts`
+4. Build and test your changes
+
+## Publishing Updates
+
+To publish a new version to npm:
+
+1. Update the version in package.json:
+   ```bash
+   npm version patch  # For bug fixes
+   npm version minor  # For new features
+   npm version major  # For breaking changes
+   ```
+
+2. Build and publish:
+   ```bash
+   npm run publishToNpm
+   ```
 
 ## Contributing
 

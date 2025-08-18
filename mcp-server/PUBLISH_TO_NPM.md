@@ -21,15 +21,7 @@ This should display your npm username. If not, log in:
 npm login
 ```
 
-### 2. Build the package
-
-Before publishing, make sure to build the package:
-
-```bash
-npm run build
-```
-
-### 3. Publish to npm
+### 2. Publish to npm
 
 You can publish directly using the script we've added:
 
@@ -45,7 +37,7 @@ npm publish --access public
 
 The `--access public` flag is required for scoped packages.
 
-### 4. Verify Publication
+### 3. Verify Publication
 
 After publishing, you can verify that your package is available on the npm registry:
 
