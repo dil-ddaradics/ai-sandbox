@@ -36,8 +36,22 @@ export class Logger {
     this.minLevel = options.minLevel !== undefined ? options.minLevel : LogLevel.INFO;
     this.logToConsole = options.logToConsole !== undefined ? options.logToConsole : true;
     
+    // Immediately log creation to stderr (not using this.log to avoid circular reference)
+    console.error(`[STARTUP] Logger initializing with log file: ${this.logFilePath}`);
+    console.error(`[STARTUP] Log level: ${LogLevel[this.minLevel]}, Console output: ${this.logToConsole}`);
+    
     // Ensure the directory exists
     this.ensureLogDirectoryExists();
+    
+    // Add immediate log entry
+    try {
+      const timestamp = new Date().toISOString();
+      const startupMsg = `[${timestamp}] [INIT] Logger initialized successfully`;
+      fs.appendFileSync(this.logFilePath, startupMsg + os.EOL);
+      console.error(startupMsg);
+    } catch (error) {
+      console.error(`[STARTUP] Failed to write initial log entry:`, error);
+    }
   }
   
   /**
@@ -49,9 +63,22 @@ export class Logger {
     if (!fs.existsSync(logDir)) {
       try {
         fs.mkdirSync(logDir, { recursive: true });
+        console.error(`Created log directory at ${logDir}`);
       } catch (error) {
         console.error(`Failed to create log directory at ${logDir}:`, error);
       }
+    } else {
+      console.error(`Log directory exists at ${logDir}`);
+    }
+    
+    // Check if we can write to the directory
+    try {
+      const testFile = path.join(logDir, '.write-test');
+      fs.writeFileSync(testFile, 'test');
+      fs.unlinkSync(testFile);
+      console.error(`Confirmed write access to log directory ${logDir}`);
+    } catch (error) {
+      console.error(`WARNING: Cannot write to log directory ${logDir}:`, error);
     }
   }
   
@@ -100,13 +127,18 @@ export class Logger {
     
     // Optionally log to console
     if (this.logToConsole) {
-      const consoleMethod = level === LogLevel.ERROR ? 'error' :
-                           level === LogLevel.WARN ? 'warn' : 
-                           level === LogLevel.INFO ? 'error' : 'error';
+      // FIXED: Use the correct console methods but all via stderr
+      // For MCP protocol compliance, we must avoid writing to stdout
+      // Always use error stream regardless of log level to avoid breaking MCP protocol
+      // Original mapping would be:
+      // - ERROR -> console.error
+      // - WARN -> console.warn
+      // - INFO -> console.info
+      // - DEBUG -> console.debug
+      // But we'll use stderr for everything instead
       
-      // Use console.error instead of console.log to ensure it goes to stderr
-      // which won't interfere with stdin/stdout used by the MCP protocol
-      console[consoleMethod](formattedMessage);
+      // Always use console.error for all log levels to avoid stdout
+      console.error(formattedMessage);
     }
   }
   

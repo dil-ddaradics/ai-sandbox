@@ -139,6 +139,25 @@ To test the echo tool:
 Use the ai-sandbox-mcp server to echo "Hello, MCP!".
 ```
 
+### Troubleshooting
+
+If you encounter issues with the MCP server:
+
+1. Check the log file at `/tmp/ai-sandbox/mcp-server.log`
+2. Use the test script to verify the server works correctly:
+
+```bash
+node scripts/test-mcp-connection.js
+```
+
+3. See the full troubleshooting guide in `scripts/troubleshoot-mcp.md`
+
+Common issues:
+- Server not starting correctly
+- STDOUT being used instead of stderr (breaks MCP protocol)
+- Log file directory permissions
+- Incorrect path configuration
+
 ## Development
 
 ### Project Structure
