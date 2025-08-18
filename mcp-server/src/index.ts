@@ -3,6 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { registerGreetingResource } from "./resources/greeting.js";
 import { registerCalculatorTools } from "./tools/calculator.js";
 import { registerEchoTool } from "./tools/echo.js";
+import logger from "./utils/logger.js";
 
 /**
  * Main entry point for the AI Sandbox MCP Server
@@ -22,43 +23,59 @@ async function main() {
     });
 
     // Register resources and tools
-    console.error("Registering MCP resources and tools...");
+    logger.info("Registering MCP resources and tools...");
     registerGreetingResource(server);
     registerCalculatorTools(server);
     registerEchoTool(server);
     
     // Start the server with stdio transport
-    console.error("Starting AI Sandbox MCP Server...");
+    logger.info("Starting AI Sandbox MCP Server...");
     const transport = new StdioServerTransport();
+    
+    // Log additional server activity
+    logger.info("Transport created");
+    
+    // Connect to the transport
     await server.connect(transport);
     
-    console.error("MCP Server started successfully and ready to receive requests");
-    console.error("Use with Claude Code: claude mcp add --transport stdio ai-sandbox-mcp -- 'node /path/to/dist/index.js'");
+    logger.info("MCP Server started successfully and ready to receive requests");
+    logger.info("Log file location: /tmp/ai-sandbox/mcp-server.log");
+    logger.info("Use with Claude Code: claude mcp add --transport stdio ai-sandbox-mcp -- 'node /path/to/dist/index.js'");
   } catch (error) {
-    console.error("Error starting MCP server:", error);
+    logger.error("Error starting MCP server:", error);
     process.exit(1);
   }
 }
 
 // Handle process signals for graceful shutdown
 process.on('SIGINT', () => {
-  console.error('Server shutting down (SIGINT)...');
+  logger.info('Server shutting down (SIGINT)...');
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
-  console.error('Server shutting down (SIGTERM)...');
+  logger.info('Server shutting down (SIGTERM)...');
   process.exit(0);
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
+  logger.error('Uncaught exception:', error);
   process.exit(1);
+});
+
+// Log incoming messages (stdin)
+process.stdin.on('data', (data) => {
+  logger.debug(`Received data of length: ${data.length} bytes`);
+});
+
+// Log when stdin ends (which might indicate Claude has disconnected)
+process.stdin.on('end', () => {
+  logger.info('stdin stream ended - client may have disconnected');
 });
 
 // Start the server
 main().catch(err => {
-  console.error("Unhandled error:", err);
+  logger.error("Unhandled error:", err);
   process.exit(1);
 });

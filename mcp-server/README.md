@@ -68,6 +68,29 @@ npm start
 
 This will start the server using stdio transport, which allows it to communicate with Claude Code.
 
+### Monitoring with Logs
+
+The server writes detailed logs to help with debugging and monitoring, especially when running with Claude Code:
+
+```bash
+# View log file
+cat /tmp/ai-sandbox/mcp-server.log
+
+# Follow log updates in real-time
+tail -f /tmp/ai-sandbox/mcp-server.log
+
+# Filter for specific events
+grep "disconnected" /tmp/ai-sandbox/mcp-server.log
+
+# View only errors
+grep "ERROR" /tmp/ai-sandbox/mcp-server.log
+```
+
+Log levels include:
+- `INFO`: Normal operation events
+- `ERROR`: Problems and exceptions
+- `DEBUG`: Detailed protocol information (when enabled)
+
 ### Connecting to Claude Code
 
 To use the MCP server with Claude Code:
